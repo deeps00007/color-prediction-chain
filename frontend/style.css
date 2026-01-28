@@ -9,14 +9,15 @@ body {
 }
 
 .app {
-  width: 360px;
+  width: 380px;
   background: #020617;
   padding: 20px;
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 .info p {
   margin: 4px 0;
+  font-size: 14px;
 }
 
 input {
