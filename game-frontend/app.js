@@ -178,6 +178,11 @@ document.getElementById("betBtn").onclick = async () => {
     return;
   }
   
+  if (parseFloat(amount) > 100) {
+    showMessage("⚠️ Max bet is 100 ETH for safety", 'error');
+    return;
+  }
+  
   const betBtn = document.getElementById("betBtn");
   const btnContent = betBtn.querySelector('.btn-content');
   const btnLoader = betBtn.querySelector('.btn-loader');
