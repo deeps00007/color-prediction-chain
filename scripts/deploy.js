@@ -1,12 +1,15 @@
-async function main() {
-  const Game = await ethers.getContractFactory("ColorPredictionV2");
-  const game = await Game.deploy();
+const hre = require("hardhat");
 
-  await game.waitForDeployment();
-  console.log("ColorPredictionV2 deployed to:", await game.getAddress());
+async function main() {
+  const ColorPrediction = await hre.ethers.getContractFactory("ColorPrediction");
+  const contract = await ColorPrediction.deploy();
+
+  await contract.waitForDeployment();
+
+  console.log("✅ ColorPrediction deployed to:", contract.target);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
 });
