@@ -6,21 +6,21 @@ const ROUND_DURATION = Number(process.env.ROUND_DURATION_SECONDS);
 export async function runRoundEngine() {
   const now = new Date();
 
-  // 1️⃣ Check if there is an active round
-  const { data: currentRound } = await supabase
+  const { data: rounds, error } = await supabase
     .from("rounds")
     .select("*")
     .order("id", { ascending: false })
-    .limit(1)
-    .single();
+    .limit(1);
 
-  // 2️⃣ If no round exists → create first round
+  const currentRound = rounds?.[0];
+
+  // 1️⃣ If no round exists → create first round ONCE
   if (!currentRound) {
     await createNewRound();
     return;
   }
 
-  // 3️⃣ Handle OPEN → CLOSED
+  // 2️⃣ OPEN → CLOSED
   if (
     currentRound.status === "OPEN" &&
     now >= new Date(currentRound.end_time)
@@ -29,13 +29,13 @@ export async function runRoundEngine() {
     return;
   }
 
-  // 4️⃣ Handle CLOSED → RESOLVED
+  // 3️⃣ CLOSED → RESOLVED
   if (currentRound.status === "CLOSED") {
     await resolveRound(currentRound.id);
     return;
   }
 
-  // 5️⃣ Handle RESOLVED → NEW ROUND
+  // 4️⃣ RESOLVED → NEW ROUND
   if (currentRound.status === "RESOLVED") {
     await createNewRound();
     return;
