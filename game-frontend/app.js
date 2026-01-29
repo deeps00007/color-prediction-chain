@@ -47,21 +47,41 @@ document.getElementById("connectBtn").onclick = async () => {
   user = await signer.getAddress();
   contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
   walletSpan.textContent = user.slice(0, 6) + "..." + user.slice(-4);
-  balanceSpan.textContent = ethers.formatEther(await provider.getBalance(user));
+  balanceSpan.textContent = parseFloat(ethers.formatEther(await provider.getBalance(user))).toFixed(4);
+  
+  // Show wallet info, hide connect button
+  document.getElementById("connectBtn").style.display = "none";
+  document.getElementById("walletInfo").style.display = "flex";
+  
   contract.on("Payout", async (winner, amount) => {
     if (winner.toLowerCase() === user.toLowerCase()) {
-      const ethAmount = ethers.formatEther(amount);
-      msg.textContent = " YOU WON " + ethAmount + " ETH!";
-      msg.style.color = "#2ecc71";
-      setTimeout(() => {
-        msg.style.color = "";
-      }, 5000);
-      balanceSpan.textContent = ethers.formatEther(
+      const ethAmount = parseFloat(ethers.formatEther(amount)).toFixed(4);
+      showMessage(`🎉 YOU WON ${ethAmount} ETH!`, 'success');
+      balanceSpan.textContent = parseFloat(ethers.formatEther(
         await provider.getBalance(user),
-      );
+      )).toFixed(4);
     }
   });
 };
+
+// Quick amount buttons
+document.querySelectorAll('.quick-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.getElementById('amount').value = btn.dataset.amount;
+  };
+});
+
+// Clear history button
+const clearHistoryBtn = document.getElementById('clearHistory');
+if (clearHistoryBtn) {
+  clearHistoryBtn.onclick = () => {
+    if (confirm('Clear all betting history?')) {
+      bettingHistory = [];
+      saveHistoryToStorage();
+      renderHistory();
+    }
+  };
+}
 async function loadRound() {
   const { data } = await supabase
     .from("rounds")
@@ -84,11 +104,30 @@ async function loadRound() {
 }
 function startTimer() {
   clearInterval(timerInterval);
+  const timerProgress = document.getElementById('timerProgress');
+  const totalTime = 30; // 30 seconds round duration
+  
   timerInterval = setInterval(() => {
     const remaining = Math.floor(
       (new Date(currentRound.end_time) - new Date()) / 1000,
     );
-    timerSpan.textContent = remaining > 0 ? remaining : "0";
+    const seconds = remaining > 0 ? remaining : 0;
+    timerSpan.textContent = seconds;
+    
+    // Update circular progress
+    if (timerProgress) {
+      const progress = (seconds / totalTime) * 283; // 283 is the circle circumference
+      timerProgress.style.strokeDashoffset = 283 - progress;
+      
+      // Change color based on time remaining
+      if (seconds <= 5) {
+        timerProgress.style.stroke = '#EF4444'; // Red
+      } else if (seconds <= 10) {
+        timerProgress.style.stroke = '#F59E0B'; // Orange
+      } else {
+        timerProgress.style.stroke = '#10B981'; // Green
+      }
+    }
   }, 1000);
 }
 supabase
@@ -99,43 +138,92 @@ supabase
     loadRound,
   )
   .subscribe();
-document.querySelectorAll(".color").forEach((btn) => {
+document.querySelectorAll(".color-btn").forEach((btn) => {
   btn.onclick = () => {
     document
-      .querySelectorAll(".color")
+      .querySelectorAll(".color-btn")
       .forEach((b) => b.classList.remove("selected"));
     btn.classList.add("selected");
     selectedColor = btn.dataset.color;
+    
+    // Enable bet button when color is selected
+    const betBtn = document.getElementById("betBtn");
+    betBtn.disabled = false;
   };
 });
+
+// Helper function to show messages
+function showMessage(text, type = 'info') {
+  msg.textContent = text;
+  msg.className = `message ${type}`;
+  setTimeout(() => {
+    msg.textContent = '';
+    msg.className = 'message';
+  }, 5000);
+}
+
 document.getElementById("betBtn").onclick = async () => {
-  if (!contract) return alert("Connect wallet");
-  if (!currentRound || currentRound.status !== "OPEN")
-    return alert("Betting closed");
-  if (!selectedColor) return alert("Select a color");
+  if (!contract) {
+    showMessage("Please connect your wallet first", 'error');
+    return;
+  }
+  if (!currentRound || currentRound.status !== "OPEN") {
+    showMessage("Betting is closed for this round", 'error');
+    return;
+  }
+  if (!selectedColor) {
+    showMessage("Please select a color", 'error');
+    return;
+  }
+  
   const amount = document.getElementById("amount").value;
-  msg.textContent = " Sending transaction...";
-  const balanceBefore = await provider.getBalance(user);
-  const tx = await contract.placeBet(
-    currentRound.id,
-    COLOR_MAP[selectedColor],
-    { value: ethers.parseEther(amount) },
-  );
-  await tx.wait();
-  const balanceAfter = await provider.getBalance(user);
-  myBet = {
-    roundId: currentRound.id,
-    color: selectedColor,
-    amount,
-    balanceBefore: ethers.formatEther(balanceBefore),
-    balanceAfter: ethers.formatEther(balanceAfter),
-  };
-  msg.textContent = " Bet placed. Waiting for result...";
-  balanceSpan.textContent = ethers.formatEther(balanceAfter);
+  if (!amount || parseFloat(amount) <= 0) {
+    showMessage("Please enter a valid bet amount", 'error');
+    return;
+  }
+  
+  const betBtn = document.getElementById("betBtn");
+  const btnContent = betBtn.querySelector('.btn-content');
+  const btnLoader = betBtn.querySelector('.btn-loader');
+  
+  try {
+    // Show loading state
+    betBtn.disabled = true;
+    btnContent.style.display = 'none';
+    btnLoader.style.display = 'block';
+    showMessage("⏳ Sending transaction...", 'info');
+    
+    const balanceBefore = await provider.getBalance(user);
+    const tx = await contract.placeBet(
+      currentRound.id,
+      COLOR_MAP[selectedColor],
+      { value: ethers.parseEther(amount) },
+    );
+    await tx.wait();
+    const balanceAfter = await provider.getBalance(user);
+    myBet = {
+      roundId: currentRound.id,
+      color: selectedColor,
+      amount,
+      balanceBefore: ethers.formatEther(balanceBefore),
+      balanceAfter: ethers.formatEther(balanceAfter),
+    };
+    
+    showMessage(`✅ Bet placed: ${amount} ETH on ${selectedColor}`, 'success');
+    balanceSpan.textContent = parseFloat(ethers.formatEther(balanceAfter)).toFixed(4);
+  } catch (error) {
+    showMessage(`❌ Error: ${error.message}`, 'error');
+  } finally {
+    // Reset button state
+    btnContent.style.display = 'flex';
+    btnLoader.style.display = 'none';
+    betBtn.disabled = false;
+  }
 };
+
 async function handleResult(round) {
   const winningColor = round.result_color;
-  document.querySelectorAll(".color").forEach((btn) => {
+  document.querySelectorAll(".color-btn").forEach((btn) => {
     btn.classList.remove("selected");
     if (btn.dataset.color === winningColor) {
       btn.classList.add("selected");
