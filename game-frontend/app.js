@@ -3,7 +3,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 /* ========= CONFIG ========= */
 
-const CONTRACT_ADDRESS = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 const ABI = [
   "function placeBet(uint256 roundId, uint8 color) payable",
@@ -32,6 +32,7 @@ const roundStatusSpan = document.getElementById("roundStatus");
 const timerSpan = document.getElementById("timer");
 const msg = document.getElementById("msg");
 const resultsDiv = document.getElementById("results");
+const historyBody = document.getElementById("historyBody");
 
 /* ========= STATE ========= */
 
@@ -40,6 +41,23 @@ let currentRound = null;
 let selectedColor = null;
 let myBet = null;
 let timerInterval = null;
+let bettingHistory = [];
+
+/* ========= LOAD HISTORY FROM LOCALSTORAGE ========= */
+
+function loadHistoryFromStorage() {
+  const saved = localStorage.getItem("bettingHistory");
+  if (saved) {
+    bettingHistory = JSON.parse(saved);
+    renderHistory();
+  }
+}
+
+function saveHistoryToStorage() {
+  localStorage.setItem("bettingHistory", JSON.stringify(bettingHistory));
+}
+
+loadHistoryFromStorage();
 
 /* ========= WALLET ========= */
 
@@ -144,6 +162,9 @@ document.getElementById("betBtn").onclick = async () => {
 
   msg.textContent = "⏳ Sending transaction...";
 
+  // Get balance before bet
+  const balanceBefore = await provider.getBalance(user);
+
   const tx = await contract.placeBet(
     currentRound.id,
     COLOR_MAP[selectedColor],
@@ -152,18 +173,15 @@ document.getElementById("betBtn").onclick = async () => {
 
   await tx.wait();
 
+  // Get balance after bet
+  const balanceAfter = await provider.getBalance(user);
+
   myBet = {
     roundId: currentRound.id,
     color: selectedColor,
-    amount
-  };
-
-  msg.textContent = "🎯 Bet placed. Waiting for result...";
-};
-
-/* ========= RESULT HANDLER ========= */
-
-function handleResult(round) {
+    amount,
+    balanceBefore: ethers.formatEther(balanceBefore),
+async function handleResult(round) {
   const winningColor = round.result_color;
 
   // highlight winning color
@@ -179,13 +197,89 @@ function handleResult(round) {
     return;
   }
 
+  // Get final balance after payout
+  await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for payout
+  const finalBalance = await provider.getBalance(user);
+  const finalBalanceEth = ethers.formatEther(finalBalance);
+
+  const won = myBet.color === winningColor;
+  let winLossAmount;
+
+  if (won) {
+    const multiplier = winningColor === "VIOLET" ? 5 : 2;
+    const winAmount = (parseFloat(myBet.amount) * multiplier).toFixed(4);
+    winLossAmount = `+${winAmount}`;
+    msg.textContent = `🎉 YOU WON ${winAmount} ETH!`;
+    msg.style.color = "#2ecc71";
+  } else {
+    winLossAmount = `-${myBet.amount}`;
+    msg.textContent = `❌ YOU LOST ${myBet.amount} ETH. Result: ${winningColor}`;
+    msg.style.color = "#e74c3c";
+  }
+
+  // Add to history
+  bettingHistory.unshift({
+    roundId: round.id,
+    betAmount: myBet.amount,
+    betColor: myBet.color,
+    resultColor: winningColor,
+    balanceBefore: myBet.balanceBefore,
+    balanceAfter: finalBalanceEth,
+    winLoss: winLossAmount,
+    won: won,
+    timestamp: new Date().toISOString()
+  });
+
+  // Keep only last 20 records
+  if (bettingHistory.length > 20) {
+    bettingHistory = bettingHistory.slice(0, 20);
+  }
+
+  saveHistoryToStorage();
+  renderHistory();
+
+  setTimeout(() => { msg.style.color = ""; }, 5000);
+  
+  // Update displayed balance
+  balanceSpan.textContent = finalBalanceEth;
+  
   if (myBet.color === winningColor) {
     const multiplier = winningColor === "VIOLET" ? 5 : 2;
     const winAmount = (parseFloat(myBet.amount) * multiplier).toFixed(4);
     msg.textContent = `🎉 YOU WON ${winAmount} ETH!`;
     msg.style.color = "#2ecc71";
   } else {
-    msg.textContent = `❌ YOU LOST ${myBet.amount} ETH. Result: ${winningColor}`;
+    msg.textCRENDER HISTORY ========= */
+
+function renderHistory() {
+  if (!bettingHistory.length) {
+    historyBody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; color: #888;">No betting history yet. Place your first bet!</td>
+      </tr>
+    `;
+    return;
+  }
+
+  historyBody.innerHTML = bettingHistory.map(h => {
+    const rowClass = h.won ? "win-row" : "loss-row";
+    const amountClass = h.won ? "amount-win" : "amount-loss";
+    
+    return `
+      <tr class="${rowClass}">
+        <td>#${h.roundId}</td>
+        <td>${h.betAmount} ETH</td>
+        <td><span class="color-badge ${h.betColor.toLowerCase()}">${h.betColor}</span></td>
+        <td><span class="color-badge ${h.resultColor.toLowerCase()}">${h.resultColor}</span></td>
+        <td>${parseFloat(h.balanceBefore).toFixed(4)} ETH</td>
+        <td>${parseFloat(h.balanceAfter).toFixed(4)} ETH</td>
+        <td class="${amountClass}">${h.winLoss} ETH</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+/* ========= ontent = `❌ YOU LOST ${myBet.amount} ETH. Result: ${winningColor}`;
     msg.style.color = "#e74c3c";
   }
 

@@ -72,3 +72,111 @@ h1 {
   height: 28px;
   border-radius: 50%;
 }
+
+/* Betting History */
+.betting-history {
+  margin-top: 20px;
+  padding: 15px;
+  background: #151a30;
+  border-radius: 10px;
+}
+
+.stats-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.stat-box {
+  background: #1e2439;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #3498db;
+}
+
+.stat-value.win {
+  color: #2ecc71;
+}
+
+.stat-value.loss {
+  color: #e74c3c;
+}
+
+.history-table-container {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+#historyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+#historyTable th {
+  background: #1e2439;
+  padding: 10px 8px;
+  text-align: left;
+  color: #3498db;
+  border-bottom: 2px solid #2c3454;
+}
+
+#historyTable td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #1e2439;
+}
+
+#historyTable tr:hover {
+  background: #1a1f35;
+}
+
+.win-row {
+  background: rgba(46, 204, 113, 0.1);
+}
+
+.loss-row {
+  background: rgba(231, 76, 60, 0.1);
+}
+
+.amount-win {
+  color: #2ecc71;
+  font-weight: bold;
+}
+
+.amount-loss {
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.color-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 11px;
+}
+
+.color-badge.red {
+  background: #e74c3c;
+}
+
+.color-badge.green {
+  background: #2ecc71;
+}
+
+.color-badge.violet {
+  background: #9b59b6;
+}

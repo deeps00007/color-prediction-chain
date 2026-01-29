@@ -41,6 +41,50 @@
     <h3>Last Results</h3>
     <div id="results"></div>
   </div>
+
+  <div class="betting-history">
+    <h3>📊 My Betting History</h3>
+    
+    <div class="stats-summary">
+      <div class="stat-box">
+        <div class="stat-label">Total Bets</div>
+        <div class="stat-value" id="totalBets">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Wins</div>
+        <div class="stat-value win" id="totalWins">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Losses</div>
+        <div class="stat-value loss" id="totalLosses">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Net P/L</div>
+        <div class="stat-value" id="netProfitLoss">0 ETH</div>
+      </div>
+    </div>
+    
+    <div class="history-table-container">
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>Round</th>
+            <th>Bet</th>
+            <th>Color</th>
+            <th>Result</th>
+            <th>Balance Before</th>
+            <th>Balance After</th>
+            <th>Win/Loss</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr>
+            <td colspan="7" style="text-align: center; color: #888;">No betting history yet. Place your first bet!</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="./app.js"></script>
