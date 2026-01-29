@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.20;
 
 contract ColorPrediction {
+    /* ========== TYPES ========== */
 
     enum Color {
         RED,
@@ -9,68 +10,87 @@ contract ColorPrediction {
         VIOLET
     }
 
-    uint256 public constant BET_AMOUNT = 0.01 ether;
-
-    struct Game {
-        address player;
-        Color chosenColor;
-        Color resultColor;
-        bool won;
-        uint256 timestamp;
+    enum RoundStatus {
+        OPEN,
+        RESOLVED
     }
 
-    Game[] public games;
+    struct Bet {
+        Color color;
+        uint256 amount;
+        bool exists;
+    }
 
-    event GamePlayed(
-        address indexed player,
-        Color chosenColor,
-        Color resultColor,
-        bool won
+    struct Round {
+        RoundStatus status;
+        Color result;
+        bool resolved;
+    }
+
+    /* ========== STATE ========== */
+
+    address public owner;
+
+    // roundId => Round
+    mapping(uint256 => Round) public rounds;
+
+    // roundId => user => Bet
+    mapping(uint256 => mapping(address => Bet)) public bets;
+
+    // roundId => players
+    mapping(uint256 => address[]) public roundPlayers;
+
+    /* ========== EVENTS ========== */
+
+    event BetPlaced(
+        uint256 indexed roundId,
+        address indexed user,
+        Color color,
+        uint256 amount
     );
 
-    // ✅ allow contract to receive ETH (HOUSE BALANCE)
-    receive() external payable {}
+    event RoundResolved(
+        uint256 indexed roundId,
+        Color result
+    );
 
-    function _randomColor(address player) internal view returns (Color) {
-        uint256 random = uint256(
-            keccak256(
-                abi.encodePacked(block.timestamp, block.prevrandao, player)
-            )
-        ) % 100;
+    event Payout(
+        address indexed user,
+        uint256 amount
+    );
 
-        if (random < 45) {
-            return Color.RED;
-        } else if (random < 90) {
-            return Color.GREEN;
-        } else {
-            return Color.VIOLET;
-        }
+    /* ========== MODIFIERS ========== */
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not authorized");
+        _;
     }
 
-    function play(Color chosenColor) external payable {
-        require(msg.value == BET_AMOUNT, "Incorrect bet amount");
-        require(
-            address(this).balance >= BET_AMOUNT * 2,
-            "House balance too low"
-        );
+    /* ========== CONSTRUCTOR ========== */
 
-        Color result = _randomColor(msg.sender);
-        bool won = (chosenColor == result);
-
-        games.push(
-            Game({
-                player: msg.sender,
-                chosenColor: chosenColor,
-                resultColor: result,
-                won: won,
-                timestamp: block.timestamp
-            })
-        );
-
-        if (won) {
-            payable(msg.sender).transfer(BET_AMOUNT * 2);
-        }
-
-        emit GamePlayed(msg.sender, chosenColor, result, won);
+    constructor() {
+        owner = msg.sender;
     }
-}
+
+    /* ========== CORE FUNCTIONS ========== */
+
+    /**
+     * @notice Place a bet on a color for a round
+     */
+    function placeBet(uint256 roundId, Color color) external payable {
+        require(msg.value > 0, "Bet amount must be > 0");
+
+        Round storage round = rounds[roundId];
+
+        // default round is OPEN unless resolved
+        require(round.status == RoundStatus.OPEN, "Round not open");
+
+        Bet storage existingBet = bets[roundId][msg.sender];
+        require(!existingBet.exists, "Already bet this round");
+
+        // store bet
+        bets[roundId][msg.sender] = Bet({
+            color: color,
+            amount: msg.value,
+            exists: true
+        });
