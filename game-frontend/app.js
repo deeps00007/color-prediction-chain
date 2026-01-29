@@ -91,12 +91,13 @@ supabase
       schema: "public",
       table: "round_results_history",
     },
-    () => {
-      console.log("🟣 History update");
-      loadHistory();
+    async () => {
+      console.log("🟣 History inserted → reloading history");
+      await loadHistory();
     }
   )
   .subscribe();
+
 // ---- INIT ----
 loadCurrentRound();
 loadHistory();
