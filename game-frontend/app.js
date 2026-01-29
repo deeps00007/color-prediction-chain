@@ -1,103 +1,36 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+import { ethers } from "https://cdn.jsdelivr.net/npm/ethers@6.10.0/+esm";
 
-const SUPABASE_URL = "https://zskfvqfszulwuhshzuxa.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpza2Z2cWZzenVsd3Voc2h6dXhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk2MDE4NDYsImV4cCI6MjA4NTE3Nzg0Nn0.wAWewC_OZmLUK9DZmJy-YB63l_OA5sTn_Lu0yxY5r2U";
+console.log("✅ app.js loaded");
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const connectBtn = document.getElementById("connectBtn");
+const walletSpan = document.getElementById("wallet");
+const balanceSpan = document.getElementById("balance");
 
-let currentRound = null;
+connectBtn.onclick = async () => {
+  try {
+    if (!window.ethereum) {
+      alert("MetaMask not found");
+      return;
+    }
 
-// ---- LOAD CURRENT ROUND ----
-async function loadCurrentRound() {
-  const { data } = await supabase
-    .from("rounds")
-    .select("*")
-    .order("id", { ascending: false })
-    .limit(1);
+    console.log("🔌 Connecting wallet...");
 
-  if (!data || data.length === 0) return;
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
 
-  currentRound = data[0];
-  render();
-}
+    const address = await signer.getAddress();
+    const balance = await provider.getBalance(address);
 
-// ---- LOAD HISTORY ----
-async function loadHistory() {
-  const { data } = await supabase
-    .from("round_results_history")
-    .select("*")
-    .order("id", { ascending: false })
-    .limit(10);
+    walletSpan.innerText =
+      address.slice(0, 6) + "..." + address.slice(-4);
 
-  const history = document.getElementById("history");
-  history.innerHTML = "";
+    balanceSpan.innerText =
+      ethers.formatEther(balance);
 
-  if (!data) return;
+    console.log("✅ Connected:", address);
 
-  data.reverse().forEach(r => {
-    const dot = document.createElement("span");
-    dot.style.background =
-      r.color === "RED" ? "red" :
-      r.color === "GREEN" ? "green" : "violet";
-    history.appendChild(dot);
-  });
-}
-
-// ---- TIMER ----
-setInterval(() => {
-  if (!currentRound || currentRound.status !== "OPEN") {
-    document.getElementById("timer").innerText = "-";
-    return;
+  } catch (err) {
+    console.error("❌ Wallet error:", err);
+    alert("Wallet connection failed");
   }
-
-  const end = new Date(currentRound.end_time).getTime();
-  const left = Math.max(0, Math.floor((end - Date.now()) / 1000));
-  document.getElementById("timer").innerText = left;
-}, 1000);
-
-// ---- RENDER ----
-function render() {
-  document.getElementById("roundId").innerText = currentRound.id;
-  document.getElementById("status").innerText = currentRound.status;
-  document.getElementById("result").innerText =
-    currentRound.result_color ?? "-";
-}
-
-// ---- REALTIME ----
-// ---- REALTIME: ROUNDS ----
-supabase
-  .channel("rounds-realtime")
-  .on(
-    "postgres_changes",
-    {
-      event: "*",
-      schema: "public",
-      table: "rounds",
-    },
-    async () => {
-      console.log("🔄 Rounds changed → reloading current round");
-      await loadCurrentRound();
-    }
-  )
-  .subscribe();
-
-// ---- REALTIME: HISTORY ----
-supabase
-  .channel("history-realtime")
-  .on(
-    "postgres_changes",
-    {
-      event: "INSERT",
-      schema: "public",
-      table: "round_results_history",
-    },
-    async () => {
-      console.log("🟣 History inserted → reloading history");
-      await loadHistory();
-    }
-  )
-  .subscribe();
-
-// ---- INIT ----
-loadCurrentRound();
-loadHistory();
+};
