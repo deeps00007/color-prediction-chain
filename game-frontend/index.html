@@ -22,7 +22,10 @@
     </div>
   </header>
 
-  <div class="wallet-card">
+  <div class="main-container">
+    <!-- Left Panel -->
+    <div class="left-panel">
+      <div class="wallet-card">
     <button id="connectBtn" class="connect-btn">
       <span class="btn-icon">🔗</span>
       <span class="btn-text">Connect Wallet</span>
@@ -118,16 +121,20 @@
     
     <div id="msg" class="message"></div>
   </div>
+    </div>
+    <!-- End Left Panel -->
 
-  <div class="history-card">
-    <h3 class="section-title">
-      <span>🎯 Last Results</span>
-      <span class="history-count" id="historyCount">0</span>
-    </h3>
-    <div id="results" class="results-grid"></div>
-  </div>
+    <!-- Right Panel -->
+    <div class="right-panel">
+      <div class="history-card">
+        <h3 class="section-title">
+          <span>🎯 Last Results</span>
+          <span class="history-count" id="historyCount">0</span>
+        </h3>
+        <div id="results" class="results-grid"></div>
+      </div>
 
-  <div class="betting-history-card">
+      <div class="betting-history-card">
     <h3 class="section-title">
       <span>📊 My Betting History</span>
       <button class="clear-history-btn" id="clearHistory" style="display: none;">Clear</button>
@@ -184,7 +191,11 @@
         </tbody>
       </table>
     </div>
+      </div>
+    </div>
+    <!-- End Right Panel -->
   </div>
+  <!-- End Main Container -->
 </div>
 
 <script type="module" src="./app.js"></script>

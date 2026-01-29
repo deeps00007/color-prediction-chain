@@ -250,6 +250,14 @@ async function handleResult(round) {
       " YOU LOST " + myBet.amount + " ETH. Result: " + winningColor;
     msg.style.color = "#e74c3c";
   }
+  
+  // Show result message
+  if (won) {
+    showMessage(`🎉 YOU WON ${winLossAmount} ETH! Result: ${winningColor}`, 'success');
+  } else {
+    showMessage(`😞 YOU LOST ${myBet.amount} ETH. Result: ${winningColor}`, 'error');
+  }
+  
   bettingHistory.unshift({
     roundId: round.id,
     betAmount: myBet.amount,
@@ -261,27 +269,31 @@ async function handleResult(round) {
     won: won,
     timestamp: new Date().toISOString(),
   });
-  if (bettingHistory.length > 20) {
-    bettingHistory = bettingHistory.slice(0, 20);
+  if (bettingHistory.length > 50) {
+    bettingHistory = bettingHistory.slice(0, 50);
   }
   saveHistoryToStorage();
   renderHistory();
-  setTimeout(() => {
-    msg.style.color = "";
-  }, 5000);
-  balanceSpan.textContent = finalBalanceEth;
+  balanceSpan.textContent = parseFloat(finalBalanceEth).toFixed(4);
   myBet = null;
 }
+
 function renderHistory() {
+  const clearBtn = document.getElementById("clearHistory");
   if (!bettingHistory.length) {
     historyBody.innerHTML =
       '<tr><td colspan="7" style="text-align: center; color: #888;">No betting history yet. Place your first bet!</td></tr>';
     document.getElementById("totalBets").textContent = "0";
     document.getElementById("totalWins").textContent = "0";
+    if (clearBtn) clearBtn.style.display = "none";
     document.getElementById("totalLosses").textContent = "0";
     document.getElementById("netProfitLoss").textContent = "0 ETH";
     return;
   }
+  
+  // Show clear button when there's history
+  if (clearBtn) clearBtn.style.display = "block";
+  
   const totalBets = bettingHistory.length;
   const wins = bettingHistory.filter((h) => h.won).length;
   const losses = totalBets - wins;
@@ -296,7 +308,7 @@ function renderHistory() {
   const netPLElement = document.getElementById("netProfitLoss");
   netPLElement.textContent =
     (netPL >= 0 ? "+" : "") + netPL.toFixed(4) + " ETH";
-  netPLElement.style.color = netPL >= 0 ? "#2ecc71" : "#e74c3c";
+  netPLElement.style.color = netPL >= 0 ? "var(--color-success)" : "var(--color-danger)";
   historyBody.innerHTML = bettingHistory
     .map((h) => {
       const rowClass = h.won ? "win-row" : "loss-row";
@@ -334,11 +346,19 @@ async function loadHistory() {
     .from("round_results_history")
     .select("*")
     .order("id", { ascending: false })
-    .limit(10);
+    .limit(20);
   resultsDiv.innerHTML = "";
+  
+  // Update history count
+  const historyCount = document.getElementById('historyCount');
+  if (historyCount) {
+    historyCount.textContent = data.length;
+  }
+  
   data.forEach((r) => {
     const dot = document.createElement("div");
     dot.className = "result " + r.color.toLowerCase();
+    dot.title = `Round ${r.round_id}: ${r.color}`;
     resultsDiv.appendChild(dot);
   });
 }
