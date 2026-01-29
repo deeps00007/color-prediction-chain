@@ -17,18 +17,23 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 /* ===== SUPABASE ===== */
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ===== DOM ===== */
 
 const connectBtn = document.getElementById("connectBtn");
+const betBtn = document.getElementById("betBtn");
+
 const walletSpan = document.getElementById("wallet");
 const balanceSpan = document.getElementById("balance");
 const roundIdSpan = document.getElementById("roundId");
 const roundStatusSpan = document.getElementById("roundStatus");
+
+const amountInput = document.getElementById("betAmount");
+const msg = document.getElementById("msg");
+const selectedText = document.getElementById("selected");
+
+const colorButtons = document.querySelectorAll(".color-btn");
 
 /* ===== STATE ===== */
 
@@ -37,6 +42,7 @@ let signer;
 let contract;
 let userAddress;
 let currentRound = null;
+let selectedColor = null;
 
 /* ===== CONNECT WALLET ===== */
 
@@ -45,11 +51,7 @@ connectBtn.onclick = async () => {
   signer = await provider.getSigner();
   userAddress = await signer.getAddress();
 
-  contract = new ethers.Contract(
-    CONTRACT_ADDRESS,
-    ABI,
-    signer
-  );
+  contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
 
   walletSpan.innerText =
     userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
@@ -64,68 +66,86 @@ async function loadBalance() {
   balanceSpan.innerText = ethers.formatEther(bal);
 }
 
-/* ===== LOAD CURRENT ROUND ===== */
+/* ===== LOAD ROUND ===== */
 
 async function loadRound() {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("rounds")
     .select("*")
     .order("id", { ascending: false })
     .limit(1);
 
-  if (error || !data.length) return;
+  if (!data || !data.length) return;
 
   currentRound = data[0];
-
   roundIdSpan.innerText = currentRound.id;
   roundStatusSpan.innerText = currentRound.status;
-
-  console.log("🎯 Current round:", currentRound.id);
 }
 
 loadRound();
 
-/* ===== REALTIME ROUND UPDATES ===== */
+/* ===== REALTIME ===== */
 
 supabase
-  .channel("round-updates")
+  .channel("rounds-live")
   .on(
     "postgres_changes",
     { event: "*", schema: "public", table: "rounds" },
-    payload => {
-      console.log("🔄 Round update received");
-      loadRound();
-    }
+    () => loadRound()
   )
   .subscribe();
 
-/* ===== BET ===== */
+/* ===== COLOR SELECT ===== */
 
-window.placeTestBet = async () => {
-  if (!currentRound) {
-    alert("Round not loaded");
+colorButtons.forEach(btn => {
+  btn.onclick = () => {
+    colorButtons.forEach(b => b.classList.remove("selected"));
+    btn.classList.add("selected");
+    selectedColor = btn.dataset.color;
+    selectedText.innerText = `Selected: ${btn.innerText}`;
+  };
+});
+
+/* ===== PLACE BET ===== */
+
+betBtn.onclick = async () => {
+  if (!contract) {
+    msg.innerText = "Connect wallet first";
     return;
   }
 
-  if (currentRound.status !== "OPEN") {
-    alert("Betting is closed");
+  if (!currentRound || currentRound.status !== "OPEN") {
+    msg.innerText = "Betting closed";
+    return;
+  }
+
+  if (selectedColor === null) {
+    msg.innerText = "Select a color";
+    return;
+  }
+
+  const amount = amountInput.value;
+  if (!amount || Number(amount) <= 0) {
+    msg.innerText = "Invalid amount";
     return;
   }
 
   try {
+    msg.innerText = "⏳ Sending transaction...";
+
     const tx = await contract.placeBet(
-      currentRound.id, // 🔥 REAL ROUND ID
-      0,               // RED (for now)
-      { value: ethers.parseEther("0.01") }
+      currentRound.id,
+      Number(selectedColor),
+      { value: ethers.parseEther(amount) }
     );
 
     await tx.wait();
     await loadBalance();
 
-    alert("✅ Bet placed");
+    msg.innerText = "✅ Bet placed";
 
   } catch (err) {
     console.error(err);
-    alert("❌ Bet failed");
+    msg.innerText = "❌ Transaction failed";
   }
 };

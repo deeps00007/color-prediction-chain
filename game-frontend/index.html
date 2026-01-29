@@ -8,15 +8,35 @@
 <h2>🎮 Color Prediction</h2>
 
 <button id="connectBtn">Connect Wallet</button>
-<button onclick="placeTestBet()">Place Test Bet (0.01 ETH on RED)</button>
-
 
 <p>Wallet: <span id="wallet">-</span></p>
 <p>Balance: <span id="balance">-</span> ETH</p>
+
+<hr />
+
 <p>Round: <span id="roundId">-</span></p>
 <p>Status: <span id="roundStatus">-</span></p>
 
+<hr />
+
+<label>Bet Amount (ETH)</label><br />
+<input id="betAmount" type="number" step="0.001" min="0.001" value="0.01" />
+
+<p>Select Color</p>
+
+<div>
+  <button class="color-btn red" data-color="0">RED</button>
+  <button class="color-btn green" data-color="1">GREEN</button>
+  <button class="color-btn violet" data-color="2">VIOLET</button>
+</div>
+
+<p id="selected">Selected: -</p>
+
+<button id="betBtn">Place Bet</button>
+
+<p id="msg"></p>
 
 <script type="module" src="./app.js"></script>
+
 </body>
 </html>
