@@ -1,30 +1,74 @@
 body {
-  font-family: Arial, sans-serif;
+  margin: 0;
   background: #0b1020;
-  color: #fff;
+  color: white;
+  font-family: Arial, sans-serif;
+}
+
+.app {
+  max-width: 420px;
+  margin: auto;
   padding: 20px;
 }
 
-button {
-  padding: 10px 14px;
-  margin: 5px;
-  cursor: pointer;
+h1 {
+  text-align: center;
 }
 
-.color-btn {
-  border: none;
-  color: #fff;
+.wallet, .round, .betting, .history {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #151a30;
+  border-radius: 10px;
+}
+
+.timer {
+  font-size: 28px;
   font-weight: bold;
+  text-align: center;
+}
+
+.colors {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0;
+}
+
+.color {
+  flex: 1;
+  margin: 5px;
+  padding: 12px;
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
 }
 
 .red { background: #e74c3c; }
 .green { background: #2ecc71; }
 .violet { background: #9b59b6; }
 
-.color-btn.selected {
-  outline: 3px solid #fff;
+.color.selected {
+  outline: 3px solid white;
 }
 
 #betBtn {
-  margin-top: 10px;
+  width: 100%;
+  padding: 12px;
+  background: #3498db;
+  border: none;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.history div {
+  display: flex;
+  gap: 5px;
+}
+
+.result {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
 }

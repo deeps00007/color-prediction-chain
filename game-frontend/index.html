@@ -1,42 +1,48 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>Color Prediction</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<h2>🎮 Color Prediction</h2>
+<div class="app">
+  <h1>🎮 Color Prediction</h1>
 
-<button id="connectBtn">Connect Wallet</button>
+  <div class="wallet">
+    <button id="connectBtn">Connect Wallet</button>
+    <p>Wallet: <span id="wallet">-</span></p>
+    <p>Balance: <span id="balance">-</span> ETH</p>
+  </div>
 
-<p>Wallet: <span id="wallet">-</span></p>
-<p>Balance: <span id="balance">-</span> ETH</p>
+  <div class="round">
+    <p>Round <span id="roundId">-</span></p>
+    <p>Status: <span id="roundStatus">-</span></p>
+    <div class="timer">
+      ⏱ <span id="timer">--</span>s
+    </div>
+  </div>
 
-<hr />
+  <div class="betting">
+    <input id="amount" type="number" step="0.001" min="0.001" value="0.01" />
 
-<p>Round: <span id="roundId">-</span></p>
-<p>Status: <span id="roundStatus">-</span></p>
+    <div class="colors">
+      <button class="color red" data-color="RED">RED</button>
+      <button class="color green" data-color="GREEN">GREEN</button>
+      <button class="color violet" data-color="VIOLET">VIOLET</button>
+    </div>
 
-<hr />
+    <button id="betBtn">Place Bet</button>
+    <p id="msg"></p>
+  </div>
 
-<label>Bet Amount (ETH)</label><br />
-<input id="betAmount" type="number" step="0.001" min="0.001" value="0.01" />
-
-<p>Select Color</p>
-
-<div>
-  <button class="color-btn red" data-color="0">RED</button>
-  <button class="color-btn green" data-color="1">GREEN</button>
-  <button class="color-btn violet" data-color="2">VIOLET</button>
+  <div class="history">
+    <h3>Last Results</h3>
+    <div id="results"></div>
+  </div>
 </div>
 
-<p id="selected">Selected: -</p>
-
-<button id="betBtn">Place Bet</button>
-
-<p id="msg"></p>
-
 <script type="module" src="./app.js"></script>
-
 </body>
 </html>
