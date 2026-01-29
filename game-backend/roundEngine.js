@@ -105,14 +105,22 @@ async function resolveRound(roundId) {
   console.log(`🎲 Resolving round ${roundId} → ${result}`);
 
   // 1️⃣ Resolve on blockchain FIRST (this pays winners!)
+  let blockchainSuccess = false;
   try {
     if (contract) {
+      console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
       const tx = await contract.resolveRound(roundId, COLOR_MAP[result]);
-      await tx.wait();
-      console.log("⛓️ Blockchain resolved, winners paid!");
+      console.log(`   Transaction sent: ${tx.hash}`);
+      const receipt = await tx.wait();
+      console.log(`⛓️ Blockchain resolved in block ${receipt.blockNumber}, winners paid!`);
+      blockchainSuccess = true;
+    } else {
+      console.error("❌ Contract not initialized!");
     }
   } catch (err) {
     console.error("❌ Blockchain resolution failed:", err.message);
+    console.error("   Full error:", err);
+    console.log("⚠️  Round will only be marked in Supabase, NO PAYOUTS SENT!");
   }
 
   // 2️⃣ Update Supabase
@@ -129,5 +137,9 @@ async function resolveRound(roundId) {
     color: result
   });
 
-  console.log("🟣 Round resolved in Supabase");
+  if (blockchainSuccess) {
+    console.log("✅ Round fully resolved (Blockchain + Supabase)");
+  } else {
+    console.log("🟡 Round resolved in Supabase only (NO BLOCKCHAIN PAYOUTS)");
+  }
 }
