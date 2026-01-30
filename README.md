@@ -60,7 +60,7 @@ Before you begin, ensure you have:
 ### Step 1: Download the Project
 
 ```bash
-git clone https://github.com/your-username/color-prediction-chain.git
+git clone https://github.com/deeps00007/color-prediction-chain.git
 cd color-prediction-chain
 ```
 
@@ -689,7 +689,7 @@ This project is licensed under the **MIT License**.
 ```
 MIT License
 
-Copyright (c) 2026 [Your Name]
+Copyright (c) 2026 Deepanshu Singh
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -744,32 +744,6 @@ This project was built with amazing open-source tools:
 
 Special thanks to the Ethereum and Web3 communities! 🌟
 
----
-
-## 📞 Support & Contact
-
-### Need Help?
-
-1. **Check the docs:**
-   - [Troubleshooting](#-troubleshooting)
-   - [FAQ](#-frequently-asked-questions)
-   - [Deployment Guide](docs/DEPLOYMENT.md)
-
-2. **Found a bug?**
-   - Open an [Issue](https://github.com/your-username/color-prediction-chain/issues)
-   - Include error messages, screenshots, and steps to reproduce
-
-3. **Have questions?**
-   - Start a [Discussion](https://github.com/your-username/color-prediction-chain/discussions)
-   - Join our [Discord](#) (if you have one)
-
-### Connect
-
-- 🐦 Twitter: [@yourhandle](https://twitter.com/yourhandle)
-- 💼 LinkedIn: [Your Name](https://linkedin.com/in/yourname)
-- 📧 Email: your.email@example.com
-
----
 
 ## 🌟 Star This Project!
 
