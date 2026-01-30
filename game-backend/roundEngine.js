@@ -10,7 +10,8 @@ const ROUND_DURATION = Number(process.env.ROUND_DURATION_SECONDS);
 /* ===== BLOCKCHAIN SETUP ===== */
 
 const ABI = [
-  "function resolveRound(uint256 roundId, uint8 result) external"
+  "function resolveRound(uint256 roundId, uint8 result) external",
+  "function rounds(uint256) view returns (uint8 status, uint8 result, bool resolved)"
 ];
 
 const COLOR_MAP = {
@@ -108,23 +109,30 @@ async function resolveRound(roundId) {
   let blockchainSuccess = false;
   try {
     if (contract) {
-      console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
-      
-      // Get current gas price and add 20% buffer for faster confirmation
-      const feeData = await provider.getFeeData();
-      const maxFeePerGas = (feeData.maxFeePerGas * 120n) / 100n;
-      const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * 120n) / 100n;
-      
-      const tx = await contract.resolveRound(roundId, COLOR_MAP[result], {
-        maxFeePerGas,
-        maxPriorityFeePerGas
-      });
-      console.log(`   Transaction sent: ${tx.hash}`);
-      
-      // Wait for confirmation with timeout
-      const receipt = await tx.wait(1, 30000); // Wait 1 confirmation, 30s timeout
-      console.log(`⛓️ Blockchain resolved in block ${receipt.blockNumber}, winners paid!`);
-      blockchainSuccess = true;
+      // Check if already resolved on-chain to avoid revert
+      const roundData = await contract.rounds(roundId);
+      if (roundData.resolved) {
+        console.log(`⚠️  Round ${roundId} already resolved on blockchain, skipping...`);
+        blockchainSuccess = false; // Don't try to resolve again
+      } else {
+        console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
+        
+        // Get current gas price and add 20% buffer for faster confirmation
+        const feeData = await provider.getFeeData();
+        const maxFeePerGas = (feeData.maxFeePerGas * 120n) / 100n;
+        const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * 120n) / 100n;
+        
+        const tx = await contract.resolveRound(roundId, COLOR_MAP[result], {
+          maxFeePerGas,
+          maxPriorityFeePerGas
+        });
+        console.log(`   Transaction sent: ${tx.hash}`);
+        
+        // Wait for confirmation with timeout
+        const receipt = await tx.wait(1, 30000); // Wait 1 confirmation, 30s timeout
+        console.log(`⛓️ Blockchain resolved in block ${receipt.blockNumber}, winners paid!`);
+        blockchainSuccess = true;
+      }
     } else {
       console.error("❌ Contract not initialized!");
     }
