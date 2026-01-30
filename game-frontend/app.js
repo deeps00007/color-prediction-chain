@@ -85,6 +85,15 @@ document.getElementById("connectBtn").onclick = async () => {
     tokenContract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, provider); // Read-only default
 
     walletSpan.textContent = user.slice(0, 6) + "..." + user.slice(-4);
+    
+    // Allow user to click the address to copy it (for Faucets)
+    walletSpan.style.cursor = "pointer";
+    walletSpan.title = "Click to Copy Address";
+    walletSpan.onclick = () => {
+        navigator.clipboard.writeText(user);
+        showMessage("📋 Address Copied!", "success");
+    };
+
     await updateBalance();
     
     // Show wallet info
