@@ -82,4 +82,4 @@ Check `.env` files in root or `game-backend/` to change round time (default 30s)
 
 ---
 
-**Made with  by GitHub Copilot**
+
