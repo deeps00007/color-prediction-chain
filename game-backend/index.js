@@ -41,4 +41,4 @@ setInterval(async () => {
   } finally {
     isProcessing = false;
   }
-}, 1000);
+}, 3000); // Changed from 1000ms to 3000ms (3 seconds) to avoid transaction spam

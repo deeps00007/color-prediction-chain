@@ -109,17 +109,27 @@ async function resolveRound(roundId) {
   try {
     if (contract) {
       console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
-      const tx = await contract.resolveRound(roundId, COLOR_MAP[result]);
+      
+      // Get current gas price and add 20% buffer for faster confirmation
+      const feeData = await provider.getFeeData();
+      const maxFeePerGas = (feeData.maxFeePerGas * 120n) / 100n;
+      const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * 120n) / 100n;
+      
+      const tx = await contract.resolveRound(roundId, COLOR_MAP[result], {
+        maxFeePerGas,
+        maxPriorityFeePerGas
+      });
       console.log(`   Transaction sent: ${tx.hash}`);
-      const receipt = await tx.wait();
+      
+      // Wait for confirmation with timeout
+      const receipt = await tx.wait(1, 30000); // Wait 1 confirmation, 30s timeout
       console.log(`⛓️ Blockchain resolved in block ${receipt.blockNumber}, winners paid!`);
       blockchainSuccess = true;
     } else {
       console.error("❌ Contract not initialized!");
     }
   } catch (err) {
-    console.error("❌ Blockchain resolution failed:", err.message);
-    console.error("   Full error:", err);
+    console.error("❌ Blockchain resolution failed:", err.shortMessage || err.message);
     console.log("⚠️  Round will only be marked in Supabase, NO PAYOUTS SENT!");
   }
 
