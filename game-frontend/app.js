@@ -55,43 +55,34 @@ document.querySelectorAll(".currency-label, .input-suffix, #netProfitLoss, .stat
 document.getElementById("connectBtn").onclick = async () => {
     if (!window.ethereum) return alert("Please install MetaMask!");
     
-    // Request network switch to Sepolia with public RPC
+    // Force add/update Sepolia with a high-performance RPC (Ankr)
+    // This fixes the "RPC endpoint returned too many errors" issue
     try {
         await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0xaa36a7' }], // Sepolia chainId
+            method: 'wallet_addEthereumChain',
+            params: [{
+                chainId: '0xaa36a7',
+                chainName: 'Sepolia (Fast RPC)',
+                nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
+                rpcUrls: ['https://rpc.ankr.com/eth_sepolia'],
+                blockExplorerUrls: ['https://sepolia.etherscan.io']
+            }]
         });
-    } catch (switchError) {
-        // Network doesn't exist, add it with public RPC
-        if (switchError.code === 4902) {
-            try {
-                await window.ethereum.request({
-                    method: 'wallet_addEthereumChain',
-                    params: [{
-                        chainId: '0xaa36a7',
-                        chainName: 'Sepolia Testnet',
-                        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-                        rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
-                        blockExplorerUrls: ['https://sepolia.etherscan.io']
-                    }]
-                });
-            } catch (addError) {
-                console.error('Failed to add network:', addError);
-            }
-        }
+    } catch (e) {
+        console.log("Network switch/add error:", e);
     }
     
-    // Get signer from MetaMask (for transactions)
+    // Get signer from MetaMask (locks to the above RPC)
     const browserProvider = new ethers.BrowserProvider(window.ethereum);
     signer = await browserProvider.getSigner();
     user = await signer.getAddress();
     
-    // Use public RPC for reading data (balances, events)
-    provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
+    // Use the same robust RPC for our read-only provider
+    provider = new ethers.JsonRpcProvider("https://rpc.ankr.com/eth_sepolia");
     
-    // Init Contracts (read operations use public RPC, writes use MetaMask signer)
+    // Init Contracts
     gameContract = new ethers.Contract(CONTRACT_ADDRESS, GAME_ABI, signer);
-    tokenContract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, provider); // Read-only for balance checks
+    tokenContract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, provider); // Read-only default
 
     walletSpan.textContent = user.slice(0, 6) + "..." + user.slice(-4);
     await updateBalance();
