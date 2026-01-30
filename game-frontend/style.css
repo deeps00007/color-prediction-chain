@@ -960,3 +960,5 @@ body {
   opacity: 0.5;
   pointer-events: none;
 }
+
+.gas-help { margin-top: 10px; text-align: center; font-size: 0.85rem; } .gas-help a { color: #a78bfa; text-decoration: none; border-bottom: 1px dotted #a78bfa; } .gas-help a:hover { color: #c4b5fd; border-bottom: 1px solid #c4b5fd; }
