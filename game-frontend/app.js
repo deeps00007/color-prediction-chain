@@ -55,13 +55,21 @@ document.querySelectorAll(".currency-label, .input-suffix, #netProfitLoss, .stat
 document.getElementById("connectBtn").onclick = async () => {
     if (!window.ethereum) return alert("Please install MetaMask!");
     
-    provider = new ethers.BrowserProvider(window.ethereum);
-    signer = await provider.getSigner();
+    // Use public Sepolia RPC to avoid rate limits from Alchemy
+    // MetaMask injects window.ethereum, but we override the provider for blockchain reads
+    const publicRpcUrl = "https://ethereum-sepolia-rpc.publicnode.com";
+    
+    // Get signer from MetaMask (for transactions)
+    const browserProvider = new ethers.BrowserProvider(window.ethereum);
+    signer = await browserProvider.getSigner();
     user = await signer.getAddress();
     
-    // Init Contracts
+    // Use public RPC for reading data (balances, events)
+    provider = new ethers.JsonRpcProvider(publicRpcUrl);
+    
+    // Init Contracts (read operations use public RPC, writes use MetaMask signer)
     gameContract = new ethers.Contract(CONTRACT_ADDRESS, GAME_ABI, signer);
-    tokenContract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, signer);
+    tokenContract = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, provider); // Read-only for balance checks
 
     walletSpan.textContent = user.slice(0, 6) + "..." + user.slice(-4);
     await updateBalance();
@@ -99,7 +107,10 @@ function addMintButton() {
         try {
             btn.disabled = true;
             btn.innerText = "Processing...";
-            const tx = await tokenContract.mint(user, ethers.parseEther("1000"));
+            
+            // Use signer for mint transaction (needs to be signed)
+            const tokenWithSigner = tokenContract.connect(signer);
+            const tx = await tokenWithSigner.mint(user, ethers.parseEther("1000"));
             showMessage("? Minting 1000 CGT...", 'info');
             await tx.wait();
             await updateBalance();
@@ -156,12 +167,13 @@ async function handleBet() {
         betBtn.disabled = true;
         showMessage("? Checking allowance...", 'info');
         
-        // 1. Check Allowance
-        const allowance = await tokenContract.allowance(user, CONTRACT_ADDRESS);
+        // Check Allowance (use signer for reads that might need wallet context)
+        const tokenWithSigner = tokenContract.connect(signer);
+        const allowance = await tokenWithSigner.allowance(user, CONTRACT_ADDRESS);
         
         if (allowance < amountWei) {
-            showMessage("? Requesting approval...", 'info');
-            const approveTx = await tokenContract.approve(CONTRACT_ADDRESS, ethers.MaxUint256); 
+            showMessage("✋ Requesting approval...", 'info');
+            const approveTx = await tokenWithSigner.approve(CONTRACT_ADDRESS, ethers.MaxUint256); 
             await approveTx.wait();
             showMessage("? Approved! Placing bet...", 'info');
         }
