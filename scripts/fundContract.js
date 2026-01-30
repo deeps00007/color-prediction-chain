@@ -1,26 +1,36 @@
 const hre = require("hardhat");
 
 async function main() {
-  const [owner] = await hre.ethers.getSigners();
-
-  const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+  const signers = await hre.ethers.getSigners();
+  const richGuy = signers[0]; // Use default owner
+  const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
   
-  // Send 10 ETH to the contract as house balance
-  const tx = await owner.sendTransaction({
-    to: CONTRACT_ADDRESS,
-    value: hre.ethers.parseEther("10.0")
-  });
-
-  await tx.wait();
-
-  console.log("✅ Sent 10 ETH to contract as house balance");
+  console.log(" Sending 5000 ETH to contract from:", richGuy.address);
   
-  // Check contract balance
-  const balance = await hre.ethers.provider.getBalance(CONTRACT_ADDRESS);
-  console.log("💰 Contract balance:", hre.ethers.formatEther(balance), "ETH");
+  try {
+    const tx = await richGuy.sendTransaction({
+      to: contractAddress,
+      value: hre.ethers.parseEther("5000")
+    });
+    
+    await tx.wait();
+    console.log(" Sent 5000 ETH to contract");
+  } catch (err) {
+    console.log(" Could not send 5000 ETH (maybe insufficient funds). Trying 100 ETH...");
+    const tx = await richGuy.sendTransaction({
+      to: contractAddress,
+      value: hre.ethers.parseEther("100")
+    });
+    await tx.wait();
+  }
+  
+  const balance = await hre.ethers.provider.getBalance(contractAddress);
+  console.log(" Contract balance is now:", hre.ethers.formatEther(balance), "ETH");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
