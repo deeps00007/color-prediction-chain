@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 contract ColorPrediction {
 
     /* ========= ENUMS ========= */
@@ -33,6 +35,7 @@ contract ColorPrediction {
     /* ========= STATE ========= */
 
     address public owner;
+    IERC20 public gameToken;
 
     // roundId => Round
     mapping(uint256 => Round) public rounds;
@@ -71,14 +74,16 @@ contract ColorPrediction {
 
     /* ========= CONSTRUCTOR ========= */
 
-    constructor() {
+    constructor(address _tokenAddress) {
         owner = msg.sender;
+        gameToken = IERC20(_tokenAddress);
     }
 
     /* ========= CORE FUNCTIONS ========= */
 
-    function placeBet(uint256 roundId, Color color) external payable {
-        require(msg.value > 0, "Bet must be > 0");
+    // Removed 'payable', added 'amount'
+    function placeBet(uint256 roundId, Color color, uint256 amount) external {
+        require(amount > 0, "Bet must be > 0");
 
         Round storage round = rounds[roundId];
 
@@ -87,15 +92,19 @@ contract ColorPrediction {
 
         require(!bets[roundId][msg.sender].exists, "Already bet");
 
+        // Transfer tokens from User -> Contract
+        // Frontend must call Approve first!
+        require(gameToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+
         bets[roundId][msg.sender] = Bet({
             color: color,
-            amount: msg.value,
+            amount: amount,
             exists: true
         });
 
         roundPlayers[roundId].push(msg.sender);
 
-        emit BetPlaced(roundId, msg.sender, color, msg.value);
+        emit BetPlaced(roundId, msg.sender, color, amount);
     }
 
     function resolveRound(uint256 roundId, Color result)
@@ -118,7 +127,8 @@ contract ColorPrediction {
 
             if (bet.color == result) {
                 uint256 payout = calculatePayout(bet.amount, result);
-                payable(player).transfer(payout);
+                // Transfer tokens from Contract -> Winner
+                require(gameToken.transfer(player, payout), "Payout failed");
                 emit Payout(player, payout);
             }
         }
@@ -151,8 +161,8 @@ contract ColorPrediction {
     /* ========= ADMIN ========= */
 
     function withdraw(uint256 amount) external onlyOwner {
-        require(address(this).balance >= amount, "Low balance");
-        payable(owner).transfer(amount);
+        require(gameToken.balanceOf(address(this)) >= amount, "Low balance");
+        require(gameToken.transfer(owner, amount), "Withdraw failed");
     }
 
     receive() external payable {}

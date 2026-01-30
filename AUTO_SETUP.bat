@@ -27,14 +27,14 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
-echo    ✓ Hardhat is running!
+echo    ? Hardhat is running!
 echo.
 
 REM Deploy contract
 echo [2/6] Deploying smart contract...
 call npx hardhat run scripts/deploy.js --network localhost > temp_deploy.txt
 if %errorlevel% neq 0 (
-    echo    ✗ Deployment failed!
+    echo    ? Deployment failed!
     type temp_deploy.txt
     del temp_deploy.txt
     pause
@@ -42,70 +42,58 @@ if %errorlevel% neq 0 (
 )
 
 REM Extract contract address from deployment output
-for /f "tokens=*" %%a in ('findstr /C:"deployed to:" temp_deploy.txt') do set DEPLOY_LINE=%%a
-for /f "tokens=5" %%a in ("%DEPLOY_LINE%") do set CONTRACT_ADDRESS=%%a
+for /f "tokens=*" %%a in ('findstr /C:"deployed to:" temp_deploy.txt') do (
+    set LINE=%%a
+    for /f "tokens=5" %%b in ("%%a") do (
+        echo Found deployment: %%b
+        set LAST_ADDRESS=%%b
+        echo %%a | findstr "GameToken" >nul && set TOKEN_ADDRESS=%%b
+        echo %%a | findstr "ColorPrediction" >nul && set CONTRACT_ADDRESS=%%b
+    )
+)
 del temp_deploy.txt
 
 if "%CONTRACT_ADDRESS%"=="" (
-    echo    ✗ Could not find contract address!
+    echo    ? Could not find contract address!
     pause
     exit /b 1
 )
-echo    ✓ Contract deployed to: %CONTRACT_ADDRESS%
+if "%TOKEN_ADDRESS%"=="" (
+    echo    ? Could not find token address!
+    pause
+    exit /b 1
+)
+echo    ? GameToken deployed to: %TOKEN_ADDRESS%
+echo    ? Contract deployed to: %CONTRACT_ADDRESS%
 echo.
 
 REM Update frontend
 echo [3/6] Updating frontend with new contract address...
-powershell -Command "(Get-Content game-frontend\app.js) -replace 'const CONTRACT_ADDRESS = \"0x[a-fA-F0-9]{40}\";', 'const CONTRACT_ADDRESS = \"%CONTRACT_ADDRESS%\";' | Set-Content game-frontend\app.js"
-echo    ✓ Frontend updated!
+powershell -Command "(Get-Content game-frontend\app.js) -replace 'const CONTRACT_ADDRESS = \".*\";', 'const CONTRACT_ADDRESS = \"%CONTRACT_ADDRESS%\";' -replace 'const TOKEN_ADDRESS = \".*\";', 'const TOKEN_ADDRESS = \"%TOKEN_ADDRESS%\";' | Set-Content game-frontend\app.js"
+echo    ? Frontend updated!
 echo.
 
 REM Update backend
 echo [4/6] Updating backend with new contract address...
 powershell -Command "(Get-Content game-backend\.env) -replace 'CONTRACT_ADDRESS=0x[a-fA-F0-9]{40}', 'CONTRACT_ADDRESS=%CONTRACT_ADDRESS%' | Set-Content game-backend\.env"
-echo    ✓ Backend updated!
-echo.
-
-REM Fund contract
-echo [5/6] Funding contract with 10 ETH...
-call npx hardhat run scripts/fundContract.js --network localhost
-if %errorlevel% neq 0 (
-    echo    ✗ Failed to fund contract!
-    pause
-    exit /b 1
-)
-echo.
-
-REM Fund player account
-echo [6/6] Funding player account with 50,000 ETH...
-call npx hardhat run scripts/fundTo50k.js --network localhost
-if %errorlevel% neq 0 (
-    echo    ✗ Failed to fund player!
-    pause
-    exit /b 1
-)
+echo    ? Backend updated!
 echo.
 
 echo ========================================
-echo   ✓ SETUP COMPLETE!
+echo   ? SETUP COMPLETE!
 echo ========================================
 echo.
 echo Contract Address: %CONTRACT_ADDRESS%
+echo Token Address:    %TOKEN_ADDRESS%
 echo.
 echo NEXT STEPS:
 echo ===========
-echo.
 echo 1. Start the backend:
 echo    ^> cd game-backend
 echo    ^> npm start
 echo.
-echo 2. Open the game:
-echo    ^> Open game-frontend\index.html in browser
+echo 2. Open game-frontend/index.html
 echo.
-echo 3. Connect MetaMask:
-echo    - Network: Localhost 8545
-echo    - Account: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
-echo.
-echo 4. Play and win!
+echo 3. Click "Mint 1000 Tokens" to get setup money!
 echo.
 pause

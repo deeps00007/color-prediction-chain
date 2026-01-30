@@ -91,7 +91,7 @@ Open `game-frontend/index.html` in your browser.
 
 ```
 +-------------+          +------------------+          +--------------+
-¦   User/     ¦  Bets    ¦  Smart Contract  ¦  Pays    ¦   Winner's   ¦
+¦   User/     ¦  Bets    ¦  Smart Contract  ¦  Pays    ¦   Winner's  ¦
 ¦  Frontend   ¦--------->¦   (The House)    ¦--------->¦    Wallet    ¦
 ¦             ¦  Tokens  ¦                  ¦  Tokens  ¦              ¦
 +-------------+          +------------------+          +--------------+
@@ -164,6 +164,29 @@ color-prediction-chain/
 +-- START_ALL.bat               # One-click launcher
 +-- hardhat.config.js           # Blockchain Config
 +-- README.md                   # You are here!
+```
+
+---
+
+## ? FAQ & Troubleshooting
+
+### **Q: Why does the Round ID not reset to 1?**
+If you cleared the database, the ID counter continues from where it left off (e.g., 1432). This is normal database behavior. To force a reset to 1, you must run this SQL in your Supabase Dashboard:
+```sql
+TRUNCATE TABLE rounds RESTART IDENTITY CASCADE;
+TRUNCATE TABLE round_results_history RESTART IDENTITY CASCADE;
+```
+
+### **Q: I clicked "Mint" but didn't get tokens?**
+1. Check the browser console (F12) for errors.
+2. Ensure you are connected to **Localhost 8545** in MetaMask.
+3. Import the Account #0 Private Key from the Hardhat terminal.
+
+### **Q: How can I reset the game?**
+To wipe all history:
+```bash
+cd game-backend
+node resetDb.js
 ```
 
 ---

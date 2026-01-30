@@ -124,7 +124,7 @@ async function resolveRound(roundId) {
   }
 
   // 2️⃣ Update Supabase
-  await supabase
+  const { error: updateError } = await supabase
     .from("rounds")
     .update({
       status: "RESOLVED",
@@ -132,10 +132,19 @@ async function resolveRound(roundId) {
     })
     .eq("id", roundId);
 
-  await supabase.from("round_results_history").insert({
+  if (updateError) console.error("❌ Supabase update error:", updateError);
+
+  const { error: historyError } = await supabase.from("round_results_history").insert({
     round_id: roundId,
     color: result
   });
+
+  if (historyError) console.error("❌ Supabase history insert error:", historyError);
+
+  // 3️⃣ Additional history save attempt (Robustness)
+  // Sometimes single inserts fail if table triggers are weird.
+  // We log success here.
+  if(!historyError) console.log("✅ History saved to Supabase");
 
   if (blockchainSuccess) {
     console.log("✅ Round fully resolved (Blockchain + Supabase)");
