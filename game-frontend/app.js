@@ -55,9 +55,31 @@ document.querySelectorAll(".currency-label, .input-suffix, #netProfitLoss, .stat
 document.getElementById("connectBtn").onclick = async () => {
     if (!window.ethereum) return alert("Please install MetaMask!");
     
-    // Use public Sepolia RPC to avoid rate limits from Alchemy
-    // MetaMask injects window.ethereum, but we override the provider for blockchain reads
-    const publicRpcUrl = "https://ethereum-sepolia-rpc.publicnode.com";
+    // Request network switch to Sepolia with public RPC
+    try {
+        await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0xaa36a7' }], // Sepolia chainId
+        });
+    } catch (switchError) {
+        // Network doesn't exist, add it with public RPC
+        if (switchError.code === 4902) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_addEthereumChain',
+                    params: [{
+                        chainId: '0xaa36a7',
+                        chainName: 'Sepolia Testnet',
+                        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+                        rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
+                        blockExplorerUrls: ['https://sepolia.etherscan.io']
+                    }]
+                });
+            } catch (addError) {
+                console.error('Failed to add network:', addError);
+            }
+        }
+    }
     
     // Get signer from MetaMask (for transactions)
     const browserProvider = new ethers.BrowserProvider(window.ethereum);
@@ -65,7 +87,7 @@ document.getElementById("connectBtn").onclick = async () => {
     user = await signer.getAddress();
     
     // Use public RPC for reading data (balances, events)
-    provider = new ethers.JsonRpcProvider(publicRpcUrl);
+    provider = new ethers.JsonRpcProvider("https://ethereum-sepolia-rpc.publicnode.com");
     
     // Init Contracts (read operations use public RPC, writes use MetaMask signer)
     gameContract = new ethers.Contract(CONTRACT_ADDRESS, GAME_ABI, signer);
