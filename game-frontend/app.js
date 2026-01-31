@@ -135,8 +135,28 @@ function addMintButton() {
             const tx = await tokenWithSigner.mint(user, ethers.parseEther("1000"));
             showMessage("? Minting 1000 CGT...", 'info');
             await tx.wait();
+            
+            // Wait 2s for RPC to sync, then update
+            showMessage("🔄 Syncing balance...", "info");
+            await new Promise(r => setTimeout(r, 2000));
             await updateBalance();
-            showMessage("? Minted 1000 Tokens!", 'success');
+            
+            showMessage("✅ Minted 1000 Tokens!", 'success');
+            
+            // Suggest adding token to wallet
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_watchAsset',
+                    params: {
+                        type: 'ERC20',
+                        options: {
+                            address: TOKEN_ADDRESS,
+                            symbol: 'CGT',
+                            decimals: 18,
+                        },
+                    },
+                });
+            } catch (k) { console.log("Token add rejected", k); }
         } catch (e) {
             console.error(e);
             showMessage("Mint failed: " + (e.reason || e.message), 'error');
