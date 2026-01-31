@@ -55,16 +55,26 @@ document.querySelectorAll(".currency-label, .input-suffix, #netProfitLoss, .stat
 document.getElementById("connectBtn").onclick = async () => {
     if (!window.ethereum) return alert("Please install MetaMask!");
     
-    // Force add/update Sepolia with a high-performance RPC (Ankr)
-    // This fixes the "RPC endpoint returned too many errors" issue
+    // Use multiple high-performance public RPCs with fallback
+    // This solves the "Unauthorized" Ankr issue and "Rate Limit" Alchemy issue
+    const RPC_URLS = [
+        "https://ethereum-sepolia.publicnode.com",
+        "https://1rpc.io/sepolia", 
+        "https://rpc.sepolia.org"
+    ];
+    
+    // Pick a random RPC to distribute load
+    const selectedRpc = RPC_URLS[Math.floor(Math.random() * RPC_URLS.length)];
+    
+    // Force add/update Sepolia with correct params to avoid symbol mismatch
     try {
         await window.ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [{
                 chainId: '0xaa36a7',
-                chainName: 'Sepolia (Fast RPC)',
-                nativeCurrency: { name: 'Sepolia ETH', symbol: 'ETH', decimals: 18 },
-                rpcUrls: ['https://rpc.ankr.com/eth_sepolia'],
+                chainName: 'Sepolia Testnet',
+                nativeCurrency: { name: 'Sepolia ETH', symbol: 'SepoliaETH', decimals: 18 }, // Fixed symbol mismatch
+                rpcUrls: RPC_URLS,
                 blockExplorerUrls: ['https://sepolia.etherscan.io']
             }]
         });
@@ -72,13 +82,13 @@ document.getElementById("connectBtn").onclick = async () => {
         console.log("Network switch/add error:", e);
     }
     
-    // Get signer from MetaMask (locks to the above RPC)
+    // Get signer from MetaMask
     const browserProvider = new ethers.BrowserProvider(window.ethereum);
     signer = await browserProvider.getSigner();
     user = await signer.getAddress();
     
-    // Use the same robust RPC for our read-only provider
-    provider = new ethers.JsonRpcProvider("https://rpc.ankr.com/eth_sepolia");
+    // Use the robust public RPC for read operations
+    provider = new ethers.JsonRpcProvider(selectedRpc);
     
     // Init Contracts
     gameContract = new ethers.Contract(CONTRACT_ADDRESS, GAME_ABI, signer);
