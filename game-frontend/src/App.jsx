@@ -1,12 +1,35 @@
 import { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import GameBoard from './components/GameBoard';
+import BettingPanel from './components/BettingPanel';
+import HistoryPanel from './components/HistoryPanel';
 import { ethers } from 'ethers';
 
 function App() {
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0.00');
 
-  // Placeholder for connection logic - will move to hook later
+  // Game State
+  const [roundId, setRoundId] = useState(602);
+  const [status, setStatus] = useState('OPEN');
+  const [timeLeft, setTimeLeft] = useState(30);
+
+  const [history, setHistory] = useState([
+    { roundId: 601, betColor: 'RED', betAmount: '10', resultColor: 'RED', won: true, winAmount: '20' },
+    { roundId: 600, betColor: 'GREEN', betAmount: '5', resultColor: 'RED', won: false, winAmount: '0' },
+  ]);
+
+  useEffect(() => {
+    // Mock Timer
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 0) return 30; // Reset loop
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const connectWallet = async () => {
     if (!window.ethereum) return alert("Please install MetaMask");
     try {
@@ -14,16 +37,29 @@ function App() {
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
       setAccount(addr);
-      // Fake balance for now until contract hooked up
-      setBalance('100.00');
+      setBalance('1000.00');
     } catch (err) {
       console.error(err);
       alert("Connection failed");
     }
   };
 
+  const handleBet = (color, amount) => {
+    // Add fake bet to history
+    console.log(`Betting ${amount} on ${color}`);
+    const newBet = {
+      roundId: roundId,
+      betColor: color,
+      betAmount: amount,
+      resultColor: 'PENDING',
+      won: false,
+      winAmount: '0'
+    };
+    setHistory((prev) => [newBet, ...prev]);
+  };
+
   return (
-    <div className="min-h-screen relative bg-slate-950 text-white selection:bg-violet-500/30">
+    <div className="min-h-screen relative bg-slate-950 text-white selection:bg-violet-500/30 font-sans">
       {/* Background Ambient Glows */}
       <div className="fixed top-0 left-0 w-[500px] h-[500px] bg-violet-600/20 rounded-full blur-[120px] -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
       <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] translate-x-1/2 translate-y-1/2 pointer-events-none" />
@@ -34,28 +70,15 @@ function App() {
         <main className="px-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Panel: Game Board & Betting */}
           <div className="lg:col-span-8 space-y-6">
-            <div className="glass-panel p-8 rounded-3xl min-h-[400px] flex items-center justify-center border-l-4 border-l-violet-500">
-              <h2 className="text-3xl font-bold text-slate-500/50">Game Board Coming Soon</h2>
-            </div>
-
-            <div className="glass-panel p-8 rounded-3xl min-h-[200px] flex items-center justify-center">
-              <h2 className="text-2xl font-bold text-slate-500/50">Betting Controls</h2>
+            <div className="grid grid-cols-1 gap-6">
+              <GameBoard roundId={roundId} status={status} timeLeft={timeLeft} />
+              <BettingPanel onBet={handleBet} isBetting={false} />
             </div>
           </div>
 
           {/* Right Panel: History */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="glass-panel p-6 rounded-3xl h-full min-h-[600px]">
-              <h3 className="text-xl font-bold mb-4 font-display">Recent History</h3>
-              <div className="space-y-2">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-white/5 flex justify-between animate-pulse">
-                    <div className="w-1/3 h-4 bg-white/10 rounded" />
-                    <div className="w-1/4 h-4 bg-white/10 rounded" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <HistoryPanel history={history} />
           </div>
         </main>
       </div>
