@@ -2,62 +2,285 @@ import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import clsx from 'clsx';
 import { motion } from 'framer-motion';
+import { supabase } from './supabase';
+import {
+  CONTRACT_ADDRESS,
+  TOKEN_ADDRESS,
+  GAME_ABI,
+  TOKEN_ABI,
+  COLOR_MAP,
+  RPC_URLS
+} from './config';
 
 function App() {
+  // Wallet state
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0.00');
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [gameContract, setGameContract] = useState(null);
+  const [tokenContract, setTokenContract] = useState(null);
 
-  // Game State
-  const [roundId, setRoundId] = useState(602);
-  const [status, setStatus] = useState('OPEN');
+  // Game state
+  const [currentRound, setCurrentRound] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
 
+  // Betting state
   const [selectedColor, setSelectedColor] = useState(null);
   const [betAmount, setBetAmount] = useState('0.01');
+  const [isBetting, setIsBetting] = useState(false);
+  const [myBet, setMyBet] = useState(null);
 
-  const [history, setHistory] = useState([
-    { roundId: 577, bet: '1000', color: 'VIOLET', result: 'RED', balanceBefore: '3093.96', balanceAfter: '2093.96', winLoss: '-1000' },
-    { roundId: 576, bet: '100', color: 'GREEN', result: 'GREEN', balanceBefore: '2993.96', balanceAfter: '3093.96', winLoss: '+200.00' },
-    { roundId: 575, bet: '30', color: 'GREEN', result: 'RED', balanceBefore: '3023.96', balanceAfter: '2993.96', winLoss: '-30' },
-    { roundId: 574, bet: '10', color: 'RED', result: 'RED', balanceBefore: '3013.96', balanceAfter: '3023.96', winLoss: '+20.00' },
-    { roundId: 573, bet: '10', color: 'RED', result: 'RED', balanceBefore: '3003.96', balanceAfter: '3013.96', winLoss: '+20.00' },
-    { roundId: 572, bet: '1001.98', color: 'RED', result: 'RED', balanceBefore: '2001.98', balanceAfter: '3003.96', winLoss: '+2003.96' },
-    { roundId: 571, bet: '0.99', color: 'RED', result: 'RED', balanceBefore: '2000.99', balanceAfter: '2001.98', winLoss: '+1.98' },
-    { roundId: 567, bet: '2000', color: 'RED', result: 'GREEN', balanceBefore: '2000.99', balanceAfter: '0.99', winLoss: '-2000' },
-  ]);
+  // History state
+  const [history, setHistory] = useState([]);
+  const [lastResults, setLastResults] = useState([]);
 
-  const [lastResults, setLastResults] = useState([
-    'RED', 'GREEN', 'VIOLET', 'GREEN', 'GREEN', 'GREEN', 'RED', 'RED', 'RED', 'RED', 'GREEN', 'RED'
-  ]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 0) return 30;
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
+  // Connect Wallet
   const connectWallet = async () => {
-    if (!window.ethereum) return alert("Please install MetaMask");
+    if (!window.ethereum) return alert("Please install MetaMask!");
+
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
+      // Pick random RPC
+      const selectedRpc = RPC_URLS[Math.floor(Math.random() * RPC_URLS.length)];
+
+      // Add Sepolia network
+      try {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: '0xaa36a7',
+            chainName: 'Sepolia Testnet',
+            nativeCurrency: { name: 'Sepolia ETH', symbol: 'SepoliaETH', decimals: 18 },
+            rpcUrls: RPC_URLS,
+            blockExplorerUrls: ['https://sepolia.etherscan.io']
+          }]
+        });
+      } catch (e) {
+        console.log("Network add error:", e);
+      }
+
+      // Get signer from MetaMask
+      const browserProvider = new ethers.BrowserProvider(window.ethereum);
+      const userSigner = await browserProvider.getSigner();
+      const addr = await userSigner.getAddress();
+
+      // Use public RPC for read operations
+      const readProvider = new ethers.JsonRpcProvider(selectedRpc);
+
+      // Init contracts
+      const game = new ethers.Contract(CONTRACT_ADDRESS, GAME_ABI, userSigner);
+      const token = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, readProvider);
+
       setAccount(addr);
-      setBalance('3093.96');
+      setSigner(userSigner);
+      setProvider(readProvider);
+      setGameContract(game);
+      setTokenContract(token);
+
+      // Update balance
+      const bal = await token.balanceOf(addr);
+      setBalance(parseFloat(ethers.formatEther(bal)).toFixed(2));
+
+      // Listen for payout events
+      game.on("Payout", async (winner, amount) => {
+        if (winner.toLowerCase() === addr.toLowerCase()) {
+          const tokenAmount = parseFloat(ethers.formatEther(amount)).toFixed(2);
+          alert(`🎉 YOU WON ${tokenAmount} CGT!`);
+          const newBal = await token.balanceOf(addr);
+          setBalance(parseFloat(ethers.formatEther(newBal)).toFixed(2));
+        }
+      });
+
     } catch (err) {
       console.error(err);
-      alert("Connection failed");
+      alert("Connection failed: " + err.message);
     }
   };
 
-  const handleBet = () => {
-    if (!selectedColor || !betAmount) return;
-    console.log(`Betting ${betAmount} on ${selectedColor}`);
+  // Mint tokens (for testing)
+  const mintTokens = async () => {
+    if (!tokenContract || !signer || !account) return;
+
+    try {
+      const tokenWithSigner = tokenContract.connect(signer);
+      const tx = await tokenWithSigner.mint(account, ethers.parseEther("1000"));
+      alert("⏳ Minting 1000 CGT...");
+      await tx.wait();
+
+      await new Promise(r => setTimeout(r, 2000));
+      const bal = await tokenContract.balanceOf(account);
+      setBalance(parseFloat(ethers.formatEther(bal)).toFixed(2));
+      alert("✅ Minted 1000 CGT!");
+    } catch (e) {
+      console.error(e);
+      alert("Mint failed: " + (e.reason || e.message));
+    }
   };
+
+  // Place Bet
+  const handleBet = async () => {
+    if (!gameContract || !tokenContract || !signer || !account) {
+      return alert("Please connect your wallet first");
+    }
+    if (!currentRound || currentRound.status !== "OPEN") {
+      return alert("Betting is closed for this round");
+    }
+    if (!selectedColor) {
+      return alert("Please select a color");
+    }
+    if (!betAmount || parseFloat(betAmount) <= 0) {
+      return alert("Please enter a valid amount");
+    }
+
+    setIsBetting(true);
+    const amountWei = ethers.parseEther(betAmount.toString());
+
+    try {
+      // Check allowance
+      const tokenWithSigner = tokenContract.connect(signer);
+      const allowance = await tokenWithSigner.allowance(account, CONTRACT_ADDRESS);
+
+      if (allowance < amountWei) {
+        alert("✋ Requesting approval...");
+        const approveTx = await tokenWithSigner.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
+        await approveTx.wait();
+        alert("✅ Approved!");
+      }
+
+      // Place bet
+      alert("🎲 Placing bet...");
+      const balanceBefore = await tokenContract.balanceOf(account);
+
+      const tx = await gameContract.placeBet(
+        currentRound.id,
+        COLOR_MAP[selectedColor],
+        amountWei
+      );
+      await tx.wait();
+
+      const balanceAfter = await tokenContract.balanceOf(account);
+
+      setMyBet({
+        roundId: currentRound.id,
+        color: selectedColor,
+        amount: betAmount,
+        balanceBefore: ethers.formatEther(balanceBefore),
+        balanceAfter: ethers.formatEther(balanceAfter),
+      });
+
+      alert(`✅ Bet placed: ${betAmount} CGT on ${selectedColor}`);
+
+      // Update balance
+      setBalance(parseFloat(ethers.formatEther(balanceAfter)).toFixed(2));
+
+    } catch (error) {
+      console.error(error);
+      alert(`❌ Error: ${error.reason || error.message}`);
+    } finally {
+      setIsBetting(false);
+    }
+  };
+
+  // Load current round from Supabase
+  const loadRound = async () => {
+    const { data } = await supabase
+      .from("rounds")
+      .select("*")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (!data?.length) return;
+    const newRound = data[0];
+
+    // Check if round was resolved
+    if (currentRound && currentRound.status !== "RESOLVED" && newRound.status === "RESOLVED") {
+      handleResult(newRound);
+    }
+
+    setCurrentRound(newRound);
+  };
+
+  // Load result history
+  const loadResultHistory = async () => {
+    const { data } = await supabase
+      .from("round_results_history")
+      .select("*")
+      .order("id", { ascending: false })
+      .limit(12);
+
+    if (data) {
+      setLastResults(data.map(r => r.color.toUpperCase()));
+    }
+  };
+
+  // Handle round result
+  const handleResult = async (round) => {
+    const winningColor = round.result_color?.toUpperCase();
+    if (!myBet || myBet.roundId !== round.id || !tokenContract || !account) return;
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const finalBalance = await tokenContract.balanceOf(account);
+    const won = myBet.color === winningColor;
+    let winLossAmount;
+
+    if (won) {
+      const multiplier = winningColor === "VIOLET" ? 5 : 2;
+      const winAmount = (parseFloat(myBet.amount) * multiplier).toFixed(2);
+      winLossAmount = "+" + winAmount;
+      alert(`🎉 YOU WON ${winLossAmount} CGT!`);
+    } else {
+      winLossAmount = "-" + myBet.amount;
+      alert(`😢 YOU LOST ${myBet.amount} CGT.`);
+    }
+
+    const newHistoryItem = {
+      roundId: round.id,
+      bet: myBet.amount,
+      color: myBet.color,
+      result: winningColor,
+      balanceBefore: myBet.balanceBefore,
+      balanceAfter: ethers.formatEther(finalBalance),
+      winLoss: winLossAmount,
+      won: won,
+    };
+
+    setHistory(prev => [newHistoryItem, ...prev].slice(0, 50));
+    setBalance(parseFloat(ethers.formatEther(finalBalance)).toFixed(2));
+    setMyBet(null);
+  };
+
+  // Timer effect
+  useEffect(() => {
+    if (!currentRound) return;
+
+    const timer = setInterval(() => {
+      const remaining = Math.floor((new Date(currentRound.end_time) - new Date()) / 1000);
+      setTimeLeft(remaining > 0 ? remaining : 0);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentRound]);
+
+  // Subscribe to Supabase realtime updates
+  useEffect(() => {
+    loadRound();
+    loadResultHistory();
+
+    const roundsChannel = supabase
+      .channel("rounds-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "rounds" }, loadRound)
+      .subscribe();
+
+    const historyChannel = supabase
+      .channel("history-live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "round_results_history" }, loadResultHistory)
+      .subscribe();
+
+    return () => {
+      roundsChannel.unsubscribe();
+      historyChannel.unsubscribe();
+    };
+  }, []);
 
   const quickAmounts = ['0.01', '0.1', '1', '10'];
 
@@ -92,12 +315,18 @@ function App() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm text-gray-400">Address</div>
-                  <div className="font-mono">{account.slice(0, 6)}...{account.slice(-4)}</div>
+                  <div className="font-mono text-sm">{account.slice(0, 6)}...{account.slice(-4)}</div>
                 </div>
-                <div>
+                <div className="text-right">
                   <div className="text-sm text-gray-400">Balance</div>
-                  <div className="font-bold">{balance} CGT</div>
+                  <div className="font-bold text-lg">{balance} CGT</div>
                 </div>
+                <button
+                  onClick={mintTokens}
+                  className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-semibold"
+                >
+                  💰 Mint 1000 CGT
+                </button>
               </div>
             )}
           </div>
@@ -107,11 +336,11 @@ function App() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <span className="text-gray-400 text-sm">Round </span>
-                <span className="text-3xl font-bold text-blue-400">{roundId}</span>
+                <span className="text-3xl font-bold text-blue-400">{currentRound?.id || '---'}</span>
               </div>
               <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/20 border border-green-500">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm font-semibold text-green-400">{status}</span>
+                <span className="text-sm font-semibold text-green-400">{currentRound?.status || 'LOADING'}</span>
               </div>
             </div>
 
@@ -202,11 +431,11 @@ function App() {
             {/* Place Bet Button */}
             <button
               onClick={handleBet}
-              disabled={!selectedColor || !betAmount}
+              disabled={!selectedColor || !betAmount || isBetting || !account}
               className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
             >
               <span>🎲</span>
-              Place Bet
+              {isBetting ? 'Processing...' : 'Place Bet'}
             </button>
           </div>
         </div>
@@ -219,7 +448,7 @@ function App() {
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <span>🎯</span> Last Results
               </h3>
-              <span className="text-xs text-gray-500">0</span>
+              <span className="text-xs text-gray-500">{lastResults.length}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {lastResults.map((result, i) => (
@@ -242,33 +471,42 @@ function App() {
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <span>📊</span> My Betting History
               </h3>
-              <button className="text-xs text-gray-400 hover:text-white">Clear</button>
+              {history.length > 0 && (
+                <button
+                  onClick={() => setHistory([])}
+                  className="text-xs text-gray-400 hover:text-white"
+                >
+                  Clear
+                </button>
+              )}
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <div className="bg-[#0a0e27] p-2 rounded-lg">
                 <div className="text-xs text-gray-400">TOTAL BETS</div>
-                <div className="text-lg font-bold">0</div>
+                <div className="text-lg font-bold">{history.length}</div>
               </div>
               <div className="bg-[#0a0e27] p-2 rounded-lg">
                 <div className="text-xs text-gray-400">WINS</div>
-                <div className="text-lg font-bold text-green-400">0</div>
+                <div className="text-lg font-bold text-green-400">{history.filter(h => h.won).length}</div>
               </div>
               <div className="bg-[#0a0e27] p-2 rounded-lg">
                 <div className="text-xs text-gray-400">LOSSES</div>
-                <div className="text-lg font-bold text-red-400">0</div>
+                <div className="text-lg font-bold text-red-400">{history.filter(h => !h.won).length}</div>
               </div>
               <div className="bg-[#0a0e27] p-2 rounded-lg">
                 <div className="text-xs text-gray-400">NET P/L</div>
-                <div className="text-lg font-bold text-orange-400">0 CGT</div>
+                <div className="text-lg font-bold text-orange-400">
+                  {history.reduce((sum, h) => sum + parseFloat(h.winLoss), 0).toFixed(2)} CGT
+                </div>
               </div>
             </div>
 
             {/* History Table */}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="w-full text-xs">
-                <thead>
+                <thead className="sticky top-0 bg-[#1a1f3a]">
                   <tr className="text-gray-400 border-b border-gray-700">
                     <th className="text-left py-2">ROUND</th>
                     <th className="text-left py-2">BET</th>
@@ -278,35 +516,43 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {history.map((h, i) => (
-                    <tr key={i} className={clsx("border-b border-gray-800", h.winLoss.startsWith('+') ? "bg-green-500/5" : "bg-red-500/5")}>
-                      <td className="py-2">#{h.roundId}</td>
-                      <td className="py-2">{h.bet}</td>
-                      <td className="py-2">
-                        <span className={clsx(
-                          "px-2 py-0.5 rounded text-xs font-bold",
-                          h.color === 'RED' && "bg-red-500/20 text-red-400",
-                          h.color === 'GREEN' && "bg-green-500/20 text-green-400",
-                          h.color === 'VIOLET' && "bg-purple-500/20 text-purple-400"
-                        )}>
-                          {h.color}
-                        </span>
-                      </td>
-                      <td className="py-2">
-                        <span className={clsx(
-                          "px-2 py-0.5 rounded text-xs font-bold",
-                          h.result === 'RED' && "bg-red-500/20 text-red-400",
-                          h.result === 'GREEN' && "bg-green-500/20 text-green-400",
-                          h.result === 'VIOLET' && "bg-purple-500/20 text-purple-400"
-                        )}>
-                          {h.result}
-                        </span>
-                      </td>
-                      <td className={clsx("py-2 text-right font-bold", h.winLoss.startsWith('+') ? "text-green-400" : "text-red-400")}>
-                        {h.winLoss}
+                  {history.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="text-center py-4 text-gray-500">
+                        No bets yet. Place your first bet!
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    history.map((h, i) => (
+                      <tr key={i} className={clsx("border-b border-gray-800", h.won ? "bg-green-500/5" : "bg-red-500/5")}>
+                        <td className="py-2">#{h.roundId}</td>
+                        <td className="py-2">{h.bet}</td>
+                        <td className="py-2">
+                          <span className={clsx(
+                            "px-2 py-0.5 rounded text-xs font-bold",
+                            h.color === 'RED' && "bg-red-500/20 text-red-400",
+                            h.color === 'GREEN' && "bg-green-500/20 text-green-400",
+                            h.color === 'VIOLET' && "bg-purple-500/20 text-purple-400"
+                          )}>
+                            {h.color}
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          <span className={clsx(
+                            "px-2 py-0.5 rounded text-xs font-bold",
+                            h.result === 'RED' && "bg-red-500/20 text-red-400",
+                            h.result === 'GREEN' && "bg-green-500/20 text-green-400",
+                            h.result === 'VIOLET' && "bg-purple-500/20 text-purple-400"
+                          )}>
+                            {h.result}
+                          </span>
+                        </td>
+                        <td className={clsx("py-2 text-right font-bold", h.won ? "text-green-400" : "text-red-400")}>
+                          {h.winLoss}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
