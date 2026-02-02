@@ -36,10 +36,42 @@ class WalletProvider with ChangeNotifier {
         await updateBalance();
         _isConnecting = false;
         notifyListeners();
+
+        // Show success message
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Connected: ${address.substring(0, 6)}...${address.substring(address.length - 4)}'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
         return true;
+      } else {
+        // Connection failed
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Connection failed - please try again'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
-      print('Error connecting wallet: $e');
+      debugPrint('Error connecting wallet: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
 
     _isConnecting = false;

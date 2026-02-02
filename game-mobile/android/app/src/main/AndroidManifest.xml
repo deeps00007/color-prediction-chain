@@ -41,5 +41,21 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- MetaMask -->
+        <package android:name="io.metamask" />
+        <!-- Trust Wallet -->
+        <package android:name="com.wallet.crypto.trustapp" />
+        <!-- Allow opening wallet apps -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="metamask" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="trust" />
+        </intent>
     </queries>
+    
+    <!-- Internet permission for WalletConnect -->
+    <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

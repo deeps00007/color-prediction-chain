@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../providers/wallet_provider.dart';
@@ -48,227 +47,169 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.indigo, Colors.purple],
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Center(
-                child: Text(
-                  'CP',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Color Prediction',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'Round #${gameProvider.currentRound?.id ?? '---'}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        title: const Text('Color Prediction',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          // Theme toggle
           IconButton(
             onPressed: themeProvider.toggleTheme,
             icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: gameProvider.isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Wallet Section
-                  _buildWalletSection(walletProvider, isDark),
-                  const SizedBox(height: 16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Wallet Card
+                    _buildWalletCard(walletProvider, isDark),
+                    const SizedBox(height: 16),
 
-                  // Game Section
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left Column - Timer & Results
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          children: [
-                            _buildTimerCard(gameProvider, isDark),
-                            const SizedBox(height: 16),
-                            _buildRecentResults(gameProvider, isDark),
-                            if (gameProvider.activeBet != null) ...[
-                              const SizedBox(height: 16),
-                              _buildActiveBet(gameProvider, isDark),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
+                    // Round Info & Timer
+                    _buildRoundCard(gameProvider, isDark),
+                    const SizedBox(height: 16),
 
-                      // Right Column - Betting & History
-                      Expanded(
-                        flex: 5,
-                        child: Column(
-                          children: [
-                            _buildBettingPanel(
-                                walletProvider, gameProvider, isDark),
-                            const SizedBox(height: 16),
-                            _buildHistory(gameProvider, isDark),
-                          ],
-                        ),
-                      ),
+                    // Recent Results
+                    _buildRecentResults(gameProvider, isDark),
+                    const SizedBox(height: 16),
+
+                    // Active Bet
+                    if (gameProvider.activeBet != null) ...[
+                      _buildActiveBet(gameProvider, isDark),
+                      const SizedBox(height: 16),
                     ],
-                  ),
-                ],
+
+                    // Betting Panel
+                    _buildBettingPanel(walletProvider, gameProvider, isDark),
+                    const SizedBox(height: 16),
+
+                    // History
+                    _buildHistory(gameProvider, isDark),
+                  ],
+                ),
               ),
             ),
     );
   }
 
-  Widget _buildWalletSection(WalletProvider walletProvider, bool isDark) {
+  Widget _buildWalletCard(WalletProvider walletProvider, bool isDark) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: walletProvider.isConnected
-            ? Row(
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Your Balance',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? Colors.grey.shade400
-                                : Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${walletProvider.balance} CGT',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      // Mint tokens
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Get Test Tokens'),
-                          content: const Text('Mint 1000 CGT test tokens?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Balance',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey.shade400
+                                  : Colors.grey.shade600,
                             ),
-                            FilledButton(
-                              onPressed: () async {
-                                Navigator.pop(context);
-                                // TODO: Implement mint
-                              },
-                              child: const Text('Mint'),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${walletProvider.balance} CGT',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                    child: const Text('Get Tokens'),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => walletProvider.updateBalance(),
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 12),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color:
-                          isDark ? Colors.grey.shade700 : Colors.grey.shade100,
+                          isDark ? Colors.grey.shade800 : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.grey.shade600
-                            : Colors.grey.shade300,
-                      ),
                     ),
-                    child: Text(
-                      '${walletProvider.address!.substring(0, 6)}...${walletProvider.address!.substring(walletProvider.address!.length - 4)}',
-                      style: const TextStyle(
-                          fontFamily: 'monospace', fontSize: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.account_balance_wallet, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${walletProvider.address!.substring(0, 6)}...${walletProvider.address!.substring(walletProvider.address!.length - 4)}',
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               )
-            : FilledButton.icon(
-                onPressed: walletProvider.isConnecting
-                    ? null
-                    : () => walletProvider.connect(context),
-                icon: const Icon(Icons.account_balance_wallet),
-                label: Text(walletProvider.isConnecting
-                    ? 'Connecting...'
-                    : 'Connect Wallet'),
+            : SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: walletProvider.isConnecting
+                      ? null
+                      : () => walletProvider.connect(context),
+                  icon: const Icon(Icons.account_balance_wallet),
+                  label: Text(walletProvider.isConnecting
+                      ? 'Connecting...'
+                      : 'Connect Wallet'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
               ),
       ),
     );
   }
 
-  Widget _buildTimerCard(GameProvider gameProvider, bool isDark) {
+  Widget _buildRoundCard(GameProvider gameProvider, bool isDark) {
     final timeLeft = gameProvider.timeLeft;
     final isUrgent = timeLeft <= 5;
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             Text(
-              'Time Remaining',
+              'Round #${gameProvider.currentRound?.id ?? '---'}',
               style: TextStyle(
-                fontSize: 14,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
             Text(
               '$timeLeft',
               style: TextStyle(
-                fontSize: 56,
+                fontSize: 72,
                 fontWeight: FontWeight.bold,
-                color: isUrgent ? Colors.red : null,
+                color: isUrgent
+                    ? Colors.red
+                    : (isDark ? Colors.white : Colors.black),
+                height: 1,
               ),
             ),
             Text(
               'seconds',
               style: TextStyle(
-                fontSize: 16,
-                color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                fontSize: 14,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
               ),
             ),
             const SizedBox(height: 16),
@@ -276,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.green.withOpacity(0.1),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                border: Border.all(color: Colors.green),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -309,6 +250,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentResults(GameProvider gameProvider, bool isDark) {
+    if (gameProvider.recentResults.isEmpty) return const SizedBox.shrink();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -317,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             const Text(
               'Recent Results',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -325,8 +268,8 @@ class _HomeScreenState extends State<HomeScreen> {
               runSpacing: 8,
               children: gameProvider.recentResults.map((color) {
                 return Container(
-                  width: 36,
-                  height: 36,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: _getColorFromString(color),
                     borderRadius: BorderRadius.circular(8),
@@ -337,7 +280,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
                       ),
                     ),
                   ),
@@ -356,20 +298,32 @@ class _HomeScreenState extends State<HomeScreen> {
       color: Colors.blue.withOpacity(0.1),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            const Text(
-              'Active Bet',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${bet.amount} CGT on ${bet.color}',
-              style: const TextStyle(color: Colors.blue),
+            const Icon(Icons.info_outline, color: Colors.blue),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Active Bet',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  Text(
+                    '${bet.amount} CGT on ${bet.color}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -379,11 +333,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBettingPanel(
       WalletProvider walletProvider, GameProvider gameProvider, bool isDark) {
+    final canBet = walletProvider.isConnected &&
+        gameProvider.currentRound?.status == 'OPEN' &&
+        !gameProvider.isBetting;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
               'Place Your Bet',
@@ -392,49 +350,47 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
 
             // Color Selection
-            const Text('Select Color',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 12),
             Row(
               children: [
-                _buildColorButton('RED', AppConfig.redColor, isDark),
+                Expanded(child: _buildColorButton('RED', AppConfig.redColor)),
                 const SizedBox(width: 8),
-                _buildColorButton('GREEN', AppConfig.greenColor, isDark),
+                Expanded(
+                    child: _buildColorButton('GREEN', AppConfig.greenColor)),
                 const SizedBox(width: 8),
-                _buildColorButton('VIOLET', AppConfig.violetColor, isDark),
+                Expanded(
+                    child: _buildColorButton('VIOLET', AppConfig.violetColor)),
               ],
             ),
             const SizedBox(height: 16),
 
             // Amount Input
-            const Text('Bet Amount',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 12),
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                hintText: 'Enter amount',
-                suffix: Text('CGT',
-                    style: TextStyle(
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600)),
+                labelText: 'Bet Amount',
+                suffixText: 'CGT',
                 border: const OutlineInputBorder(),
+                enabled: canBet,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+
+            // Quick Amount Buttons
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: ['10', '50', '100', '500'].map((val) {
                 return ChoiceChip(
-                  label: Text(val),
+                  label: Text('$val CGT'),
                   selected: _amountController.text == val,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() => _amountController.text = val);
-                    }
-                  },
+                  onSelected: canBet
+                      ? (selected) {
+                          if (selected) {
+                            setState(() => _amountController.text = val);
+                          }
+                        }
+                      : null,
                 );
               }).toList(),
             ),
@@ -442,16 +398,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // Place Bet Button
             SizedBox(
-              width: double.infinity,
+              height: 50,
               child: FilledButton(
-                onPressed: (!walletProvider.isConnected ||
-                        _selectedColor == null ||
-                        gameProvider.isBetting)
-                    ? null
-                    : () => _placeBet(walletProvider, gameProvider),
+                onPressed: (canBet && _selectedColor != null)
+                    ? () => _placeBet(walletProvider, gameProvider)
+                    : null,
                 child: gameProvider.isBetting
-                    ? Text(gameProvider.bettingStep)
-                    : const Text('Place Bet'),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(gameProvider.bettingStep),
+                        ],
+                      )
+                    : const Text('Place Bet', style: TextStyle(fontSize: 16)),
               ),
             ),
           ],
@@ -460,40 +428,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildColorButton(String color, Color bgColor, bool isDark) {
+  Widget _buildColorButton(String color, Color bgColor) {
     final isSelected = _selectedColor == color;
     final multiplier = color == 'VIOLET' ? '5x' : '2x';
 
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _selectedColor = color),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(8),
-            border:
-                isSelected ? Border.all(color: Colors.white, width: 3) : null,
-          ),
-          child: Column(
-            children: [
-              Text(
-                color,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+    return InkWell(
+      onTap: () => setState(() => _selectedColor = color),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected ? Border.all(color: Colors.white, width: 3) : null,
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                      color: bgColor.withOpacity(0.5),
+                      blurRadius: 8,
+                      spreadRadius: 2)
+                ]
+              : null,
+        ),
+        child: Column(
+          children: [
+            Text(
+              color,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
               ),
-              const SizedBox(height: 4),
-              Text(
-                multiplier,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              multiplier,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -511,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text(
                   'Betting History',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 if (gameProvider.history.isNotEmpty)
                   TextButton(
@@ -520,7 +494,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         context: context,
                         builder: (context) => AlertDialog(
                           title: const Text('Clear History'),
-                          content: const Text('Are you sure?'),
+                          content: const Text('Clear all betting history?'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),
@@ -537,17 +511,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     },
-                    child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                    child: const Text('Clear'),
                   ),
               ],
             ),
             const SizedBox(height: 12),
             if (gameProvider.history.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child:
-                      Text('No bets yet', style: TextStyle(color: Colors.grey)),
+              const Padding(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: Text(
+                    'No bets yet',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
               )
             else
@@ -560,33 +536,40 @@ class _HomeScreenState extends State<HomeScreen> {
                         ? Colors.green.withOpacity(0.1)
                         : Colors.red.withOpacity(0.1),
                     border: Border.all(
-                      color: item.won
-                          ? Colors.green.withOpacity(0.3)
-                          : Colors.red.withOpacity(0.3),
+                      color: item.won ? Colors.green : Colors.red,
                     ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Round #${item.roundId}',
-                            style: const TextStyle(
-                                fontSize: 12, fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            'Bet: ${item.bet} CGT on ${item.color}',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ],
+                      Icon(
+                        item.won ? Icons.check_circle : Icons.cancel,
+                        color: item.won ? Colors.green : Colors.red,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Round #${item.roundId}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '${item.bet} CGT on ${item.color}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ],
+                        ),
                       ),
                       Text(
                         '${item.winLoss} CGT',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
+                          fontSize: 16,
                           color: item.won ? Colors.green : Colors.red,
                         ),
                       ),

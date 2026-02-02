@@ -1,5 +1,6 @@
 import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 
 class WalletService {
@@ -62,16 +63,25 @@ class WalletService {
 
       final Uri? uri = response.uri;
       if (uri != null) {
-        // Show QR code or deep link
-        // For mobile, we'll use deep linking
         final wcUri = uri.toString();
 
-        // Try to open MetaMask app
-        final metamaskUri = 'metamask://wc?uri=${Uri.encodeComponent(wcUri)}';
+        // Try to open MetaMask app directly
+        final metamaskUri =
+            Uri.parse('metamask://wc?uri=${Uri.encodeComponent(wcUri)}');
 
-        // You can also show a dialog with the URI for other wallets
-        if (context.mounted) {
-          _showConnectionDialog(context, wcUri);
+        bool launched = false;
+        try {
+          launched = await launchUrl(
+            metamaskUri,
+            mode: LaunchMode.externalApplication,
+          );
+        } catch (e) {
+          // MetaMask not installed, show dialog
+        }
+
+        if (!launched && context.mounted) {
+          // Show dialog with options
+          await _showWalletOptions(context, wcUri);
         }
       }
 
@@ -82,7 +92,7 @@ class WalletService {
 
       return _currentAddress;
     } catch (e) {
-      print('Error connecting wallet: $e');
+      debugPrint('Error connecting wallet: $e');
       return null;
     }
   }
@@ -126,7 +136,7 @@ class WalletService {
 
       return result as String;
     } catch (e) {
-      print('Error sending transaction: $e');
+      debugPrint('Error sending transaction: $e');
       rethrow;
     }
   }
@@ -136,22 +146,78 @@ class WalletService {
     _currentAddress = null;
   }
 
-  void _showConnectionDialog(BuildContext context, String wcUri) {
-    showDialog(
+  Future<void> _showWalletOptions(BuildContext context, String wcUri) async {
+    return showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Connect Wallet'),
-        content: Column(
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Open your wallet app to connect'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                // Copy URI to clipboard or open wallet
+            const Text(
+              'Connect Wallet',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+
+            // MetaMask Button
+            ElevatedButton.icon(
+              onPressed: () async {
                 Navigator.pop(context);
+                final metamaskUri = Uri.parse(
+                    'metamask://wc?uri=${Uri.encodeComponent(wcUri)}');
+                await launchUrl(metamaskUri,
+                    mode: LaunchMode.externalApplication);
               },
-              child: const Text('Open MetaMask'),
+              icon: const Icon(Icons.account_balance_wallet),
+              label: const Text('MetaMask'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Trust Wallet Button
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                final trustUri =
+                    Uri.parse('trust://wc?uri=${Uri.encodeComponent(wcUri)}');
+                await launchUrl(trustUri, mode: LaunchMode.externalApplication);
+              },
+              icon: const Icon(Icons.account_balance_wallet),
+              label: const Text('Trust Wallet'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Other Wallets
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                final uri = Uri.parse(wcUri);
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('Other Wallets'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.all(16),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            const Text(
+              'Make sure you have a wallet app installed',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
