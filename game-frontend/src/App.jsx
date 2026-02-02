@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import clsx from 'clsx';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from './supabase';
 import {
   CONTRACT_ADDRESS,
@@ -13,37 +13,41 @@ import {
 } from './config';
 
 function App() {
-  // Wallet state
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0.00');
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [gameContract, setGameContract] = useState(null);
   const [tokenContract, setTokenContract] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  // Game state
   const [currentRound, setCurrentRound] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Betting state
   const [selectedColor, setSelectedColor] = useState(null);
-  const [betAmount, setBetAmount] = useState('0.01');
+  const [betAmount, setBetAmount] = useState('10');
   const [isBetting, setIsBetting] = useState(false);
   const [myBet, setMyBet] = useState(null);
+  const [message, setMessage] = useState({ text: '', type: '' });
 
-  // History state
   const [history, setHistory] = useState([]);
   const [lastResults, setLastResults] = useState([]);
 
-  // Connect Wallet
+  const showMessage = (text, type = 'info') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage({ text: '', type: '' }), 4000);
+  };
+
   const connectWallet = async () => {
-    if (!window.ethereum) return alert("Please install MetaMask!");
+    if (!window.ethereum) return showMessage("Please install MetaMask", 'error');
+    setIsConnecting(true);
 
     try {
-      // Pick random RPC
       const selectedRpc = RPC_URLS[Math.floor(Math.random() * RPC_URLS.length)];
 
-      // Add Sepolia network
       try {
         await window.ethereum.request({
           method: 'wallet_addEthereumChain',
@@ -55,19 +59,13 @@ function App() {
             blockExplorerUrls: ['https://sepolia.etherscan.io']
           }]
         });
-      } catch (e) {
-        console.log("Network add error:", e);
-      }
+      } catch (e) { }
 
-      // Get signer from MetaMask
       const browserProvider = new ethers.BrowserProvider(window.ethereum);
       const userSigner = await browserProvider.getSigner();
       const addr = await userSigner.getAddress();
 
-      // Use public RPC for read operations
       const readProvider = new ethers.JsonRpcProvider(selectedRpc);
-
-      // Init contracts
       const game = new ethers.Contract(CONTRACT_ADDRESS, GAME_ABI, userSigner);
       const token = new ethers.Contract(TOKEN_ADDRESS, TOKEN_ABI, readProvider);
 
@@ -77,85 +75,62 @@ function App() {
       setGameContract(game);
       setTokenContract(token);
 
-      // Update balance
       const bal = await token.balanceOf(addr);
       setBalance(parseFloat(ethers.formatEther(bal)).toFixed(2));
 
-      // Listen for payout events
       game.on("Payout", async (winner, amount) => {
         if (winner.toLowerCase() === addr.toLowerCase()) {
-          const tokenAmount = parseFloat(ethers.formatEther(amount)).toFixed(2);
-          alert(`🎉 YOU WON ${tokenAmount} CGT!`);
+          showMessage(`You won ${parseFloat(ethers.formatEther(amount)).toFixed(2)} CGT!`, 'success');
           const newBal = await token.balanceOf(addr);
           setBalance(parseFloat(ethers.formatEther(newBal)).toFixed(2));
         }
       });
 
+      showMessage("Wallet connected", 'success');
     } catch (err) {
-      console.error(err);
-      alert("Connection failed: " + err.message);
+      showMessage(err.code === 4001 ? "Connection rejected" : "Connection failed", 'error');
+    } finally {
+      setIsConnecting(false);
     }
   };
 
-  // Mint tokens (for testing)
   const mintTokens = async () => {
     if (!tokenContract || !signer || !account) return;
-
     try {
       const tokenWithSigner = tokenContract.connect(signer);
       const tx = await tokenWithSigner.mint(account, ethers.parseEther("1000"));
-      alert("⏳ Minting 1000 CGT...");
+      showMessage("Minting tokens...", 'info');
       await tx.wait();
-
       await new Promise(r => setTimeout(r, 2000));
       const bal = await tokenContract.balanceOf(account);
       setBalance(parseFloat(ethers.formatEther(bal)).toFixed(2));
-      alert("✅ Minted 1000 CGT!");
+      showMessage("1000 CGT minted successfully", 'success');
     } catch (e) {
-      console.error(e);
-      alert("Mint failed: " + (e.reason || e.message));
+      showMessage("Mint failed", 'error');
     }
   };
 
-  // Place Bet
   const handleBet = async () => {
-    if (!gameContract || !tokenContract || !signer || !account) {
-      return alert("Please connect your wallet first");
-    }
-    if (!currentRound || currentRound.status !== "OPEN") {
-      return alert("Betting is closed for this round");
-    }
-    if (!selectedColor) {
-      return alert("Please select a color");
-    }
-    if (!betAmount || parseFloat(betAmount) <= 0) {
-      return alert("Please enter a valid amount");
-    }
+    if (!gameContract || !tokenContract || !signer || !account) return showMessage("Connect wallet first", 'error');
+    if (!currentRound || currentRound.status !== "OPEN") return showMessage("Betting is closed", 'error');
+    if (!selectedColor) return showMessage("Select a color", 'error');
+    if (!betAmount || parseFloat(betAmount) <= 0) return showMessage("Enter valid amount", 'error');
+    if (parseFloat(betAmount) > parseFloat(balance)) return showMessage("Insufficient balance", 'error');
 
     setIsBetting(true);
     const amountWei = ethers.parseEther(betAmount.toString());
 
     try {
-      // Check allowance
       const tokenWithSigner = tokenContract.connect(signer);
       const allowance = await tokenWithSigner.allowance(account, CONTRACT_ADDRESS);
 
       if (allowance < amountWei) {
-        alert("✋ Requesting approval...");
         const approveTx = await tokenWithSigner.approve(CONTRACT_ADDRESS, ethers.MaxUint256);
         await approveTx.wait();
-        alert("✅ Approved!");
       }
 
-      // Place bet
-      alert("🎲 Placing bet...");
       const balanceBefore = await tokenContract.balanceOf(account);
-
-      const tx = await gameContract.placeBet(
-        currentRound.id,
-        COLOR_MAP[selectedColor],
-        amountWei
-      );
+      const tx = await gameContract.placeBet(currentRound.id, COLOR_MAP[selectedColor], amountWei);
       await tx.wait();
 
       const balanceAfter = await tokenContract.balanceOf(account);
@@ -168,52 +143,40 @@ function App() {
         balanceAfter: ethers.formatEther(balanceAfter),
       });
 
-      alert(`✅ Bet placed: ${betAmount} CGT on ${selectedColor}`);
-
-      // Update balance
+      showMessage(`Bet placed: ${betAmount} CGT on ${selectedColor}`, 'success');
       setBalance(parseFloat(ethers.formatEther(balanceAfter)).toFixed(2));
+      setSelectedColor(null);
 
     } catch (error) {
-      console.error(error);
-      alert(`❌ Error: ${error.reason || error.message}`);
+      showMessage(error.code === 4001 ? "Transaction rejected" : "Bet failed", 'error');
     } finally {
       setIsBetting(false);
     }
   };
 
-  // Load current round from Supabase
   const loadRound = async () => {
-    const { data } = await supabase
-      .from("rounds")
-      .select("*")
-      .order("id", { ascending: false })
-      .limit(1);
+    try {
+      const { data } = await supabase.from("rounds").select("*").order("id", { ascending: false }).limit(1);
+      if (!data?.length) return;
 
-    if (!data?.length) return;
-    const newRound = data[0];
-
-    // Check if round was resolved
-    if (currentRound && currentRound.status !== "RESOLVED" && newRound.status === "RESOLVED") {
-      handleResult(newRound);
+      const newRound = data[0];
+      if (currentRound && currentRound.status !== "RESOLVED" && newRound.status === "RESOLVED") {
+        handleResult(newRound);
+      }
+      setCurrentRound(newRound);
+      setIsLoading(false);
+    } catch (err) {
+      console.error(err);
     }
-
-    setCurrentRound(newRound);
   };
 
-  // Load result history
   const loadResultHistory = async () => {
-    const { data } = await supabase
-      .from("round_results_history")
-      .select("*")
-      .order("id", { ascending: false })
-      .limit(12);
-
-    if (data) {
-      setLastResults(data.map(r => r.color.toUpperCase()));
-    }
+    try {
+      const { data } = await supabase.from("round_results_history").select("*").order("id", { ascending: false }).limit(10);
+      if (data) setLastResults(data.map(r => r.color.toUpperCase()));
+    } catch (err) { }
   };
 
-  // Handle round result
   const handleResult = async (round) => {
     const winningColor = round.result_color?.toUpperCase();
     if (!myBet || myBet.roundId !== round.id || !tokenContract || !account) return;
@@ -221,60 +184,40 @@ function App() {
     await new Promise(resolve => setTimeout(resolve, 2000));
     const finalBalance = await tokenContract.balanceOf(account);
     const won = myBet.color === winningColor;
-    let winLossAmount;
 
-    if (won) {
-      const multiplier = winningColor === "VIOLET" ? 5 : 2;
-      const winAmount = (parseFloat(myBet.amount) * multiplier).toFixed(2);
-      winLossAmount = "+" + winAmount;
-      alert(`🎉 YOU WON ${winLossAmount} CGT!`);
-    } else {
-      winLossAmount = "-" + myBet.amount;
-      alert(`😢 YOU LOST ${myBet.amount} CGT.`);
-    }
+    const multiplier = winningColor === "VIOLET" ? 5 : 2;
+    const winLossAmount = won ? `+${(parseFloat(myBet.amount) * multiplier).toFixed(2)}` : `-${myBet.amount}`;
 
-    const newHistoryItem = {
+    showMessage(won ? `You won ${winLossAmount} CGT!` : `You lost ${myBet.amount} CGT`, won ? 'success' : 'error');
+
+    setHistory(prev => [{
       roundId: round.id,
       bet: myBet.amount,
       color: myBet.color,
       result: winningColor,
-      balanceBefore: myBet.balanceBefore,
-      balanceAfter: ethers.formatEther(finalBalance),
       winLoss: winLossAmount,
       won: won,
-    };
+    }, ...prev].slice(0, 20));
 
-    setHistory(prev => [newHistoryItem, ...prev].slice(0, 50));
     setBalance(parseFloat(ethers.formatEther(finalBalance)).toFixed(2));
     setMyBet(null);
   };
 
-  // Timer effect
   useEffect(() => {
     if (!currentRound) return;
-
     const timer = setInterval(() => {
       const remaining = Math.floor((new Date(currentRound.end_time) - new Date()) / 1000);
       setTimeLeft(remaining > 0 ? remaining : 0);
     }, 1000);
-
     return () => clearInterval(timer);
   }, [currentRound]);
 
-  // Subscribe to Supabase realtime updates
   useEffect(() => {
     loadRound();
     loadResultHistory();
 
-    const roundsChannel = supabase
-      .channel("rounds-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "rounds" }, loadRound)
-      .subscribe();
-
-    const historyChannel = supabase
-      .channel("history-live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "round_results_history" }, loadResultHistory)
-      .subscribe();
+    const roundsChannel = supabase.channel("rounds-live").on("postgres_changes", { event: "*", schema: "public", table: "rounds" }, loadRound).subscribe();
+    const historyChannel = supabase.channel("history-live").on("postgres_changes", { event: "INSERT", schema: "public", table: "round_results_history" }, loadResultHistory).subscribe();
 
     return () => {
       roundsChannel.unsubscribe();
@@ -282,279 +225,286 @@ function App() {
     };
   }, []);
 
-  const quickAmounts = ['0.01', '0.1', '1', '10'];
+  if (isLoading) {
+    return (
+      <div className={clsx("h-screen flex items-center justify-center", isDarkMode ? "bg-gray-900" : "bg-gray-50")}>
+        <div className={clsx(isDarkMode ? "text-gray-300" : "text-gray-600")}>Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] text-white font-sans">
+    <div className={clsx("h-screen flex flex-col overflow-hidden", isDarkMode ? "bg-gray-900" : "bg-gray-50")}>
       {/* Header */}
-      <header className="bg-[#1a1f3a] py-4 px-6 flex items-center justify-center border-b border-gray-800">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🎯</span>
-          <h1 className="text-2xl font-bold">
-            <span className="text-white">Color</span>
-            <span className="text-purple-500">Predict</span>
-          </h1>
+      <header className={clsx("border-b px-6 py-4 flex items-center justify-between shrink-0 shadow-sm", isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200")}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+            CP
+          </div>
+          <div>
+            <h1 className={clsx("text-xl font-bold", isDarkMode ? "text-white" : "text-gray-900")}>Color Prediction</h1>
+            <p className={clsx("text-xs", isDarkMode ? "text-gray-400" : "text-gray-500")}>Round #{currentRound?.id || '---'}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Dark Mode Toggle */}
+          <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className={clsx("p-2 rounded-lg transition-colors", isDarkMode ? "bg-gray-700 hover:bg-gray-600 text-yellow-400" : "bg-gray-100 hover:bg-gray-200 text-gray-700")}
+            title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDarkMode ? '☀️' : '🌙'}
+          </button>
+
+          {account ? (
+            <>
+              <div className="text-right">
+                <div className={clsx("text-xs", isDarkMode ? "text-gray-400" : "text-gray-500")}>Your Balance</div>
+                <div className={clsx("text-lg font-bold", isDarkMode ? "text-white" : "text-gray-900")}>{balance} <span className={clsx("text-sm font-normal", isDarkMode ? "text-gray-400" : "text-gray-500")}>CGT</span></div>
+              </div>
+              <button
+                onClick={mintTokens}
+                className={clsx("px-4 py-2 rounded-lg text-sm font-medium transition-colors border", isDarkMode ? "bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600" : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300")}
+              >
+                Get Test Tokens
+              </button>
+              <div className={clsx("px-4 py-2 rounded-lg text-sm font-mono border", isDarkMode ? "bg-gray-700 text-gray-200 border-gray-600" : "bg-gray-100 text-gray-700 border-gray-300")}>
+                {account.slice(0, 6)}...{account.slice(-4)}
+              </div>
+            </>
+          ) : (
+            <button
+              onClick={connectWallet}
+              disabled={isConnecting}
+              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+            >
+              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Main Container */}
-      <div className="max-w-7xl mx-auto p-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Left Panel */}
-        <div className="lg:col-span-2 space-y-4">
-          {/* Wallet Card */}
-          <div className="bg-[#1a1f3a] rounded-2xl p-4 border border-gray-800">
-            {!account ? (
-              <button
-                onClick={connectWallet}
-                className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-              >
-                <span>🔗</span>
-                Connect Wallet
-              </button>
-            ) : (
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-400">Address</div>
-                  <div className="font-mono text-sm">{account.slice(0, 6)}...{account.slice(-4)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-400">Balance</div>
-                  <div className="font-bold text-lg">{balance} CGT</div>
-                </div>
-                <button
-                  onClick={mintTokens}
-                  className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-semibold"
-                >
-                  💰 Mint 1000 CGT
-                </button>
-              </div>
+      {/* Toast */}
+      <AnimatePresence>
+        {message.text && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={clsx(
+              "fixed top-24 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-lg shadow-lg text-sm font-medium",
+              message.type === 'success' && "bg-green-50 text-green-800 border border-green-200",
+              message.type === 'error' && "bg-red-50 text-red-800 border border-red-200",
+              message.type === 'info' && "bg-blue-50 text-blue-800 border border-blue-200"
             )}
-          </div>
+          >
+            {message.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {/* Round Info */}
-          <div className="bg-[#1a1f3a] rounded-2xl p-6 border border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <span className="text-gray-400 text-sm">Round </span>
-                <span className="text-3xl font-bold text-blue-400">{currentRound?.id || '---'}</span>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/20 border border-green-500">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm font-semibold text-green-400">{currentRound?.status || 'LOADING'}</span>
-              </div>
-            </div>
-
-            {/* Timer */}
-            <div className="flex justify-center">
-              <div className="relative w-48 h-48">
-                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#2a2f4a" strokeWidth="8" />
-                  <motion.circle
-                    cx="50" cy="50" r="45"
-                    fill="none"
-                    stroke="#8b5cf6"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray="283"
-                    animate={{ strokeDashoffset: 283 - (timeLeft / 30) * 283 }}
-                    transition={{ duration: 1, ease: "linear" }}
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <div className="text-xl">⏱️</div>
-                  <div className="text-5xl font-bold tabular-nums">{timeLeft}<span className="text-2xl">s</span></div>
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column - Timer & Results */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Timer Card */}
+              <div className={clsx("rounded-xl p-6 shadow-sm border", isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200")}>
+                <div className="text-center">
+                  <div className={clsx("text-sm font-medium mb-2", isDarkMode ? "text-gray-400" : "text-gray-500")}>Time Remaining</div>
+                  <div className={clsx(
+                    "text-6xl font-bold tabular-nums mb-4",
+                    timeLeft <= 5 ? "text-red-600" : (isDarkMode ? "text-white" : "text-gray-900")
+                  )}>
+                    {timeLeft}<span className={clsx("text-3xl", isDarkMode ? "text-gray-500" : "text-gray-400")}>s</span>
+                  </div>
+                  <div className={clsx("inline-flex items-center gap-2 px-4 py-2 border rounded-full", isDarkMode ? "bg-green-900/30 border-green-700" : "bg-green-50 border-green-200")}>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className={clsx("text-sm font-medium", isDarkMode ? "text-green-400" : "text-green-700")}>{currentRound?.status || 'LOADING'}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Betting Panel */}
-          <div className="bg-[#1a1f3a] rounded-2xl p-6 border border-gray-800">
-            <h3 className="text-lg font-bold mb-4">Place Your Bet</h3>
-
-            {/* Amount Input */}
-            <div className="mb-4">
-              <label className="text-sm text-gray-400 mb-2 block">BET AMOUNT</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl">💰</span>
-                <input
-                  type="number"
-                  value={betAmount}
-                  onChange={(e) => setBetAmount(e.target.value)}
-                  className="w-full bg-[#0a0e27] border border-gray-700 rounded-xl py-3 pl-12 pr-16 text-lg font-bold focus:outline-none focus:border-purple-500"
-                  placeholder="0.01"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">CGT</span>
+              {/* Recent Results */}
+              <div className={clsx("rounded-xl p-6 shadow-sm border", isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200")}>
+                <h3 className={clsx("text-sm font-semibold mb-4", isDarkMode ? "text-gray-200" : "text-gray-700")}>Recent Results</h3>
+                <div className="flex flex-wrap gap-2">
+                  {lastResults.map((result, i) => (
+                    <div
+                      key={i}
+                      className={clsx(
+                        "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-sm",
+                        result === 'RED' && "bg-red-500",
+                        result === 'GREEN' && "bg-green-500",
+                        result === 'VIOLET' && "bg-purple-500"
+                      )}
+                    >
+                      {result[0]}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Quick Amounts */}
-              <div className="flex gap-2 mt-3">
-                {quickAmounts.map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => setBetAmount(val)}
-                    className="flex-1 px-3 py-2 rounded-lg bg-[#0a0e27] hover:bg-[#1a1f3a] border border-gray-700 text-sm font-medium"
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Color Selection */}
-            <div className="mb-4">
-              <label className="text-sm text-gray-400 mb-2 block">SELECT COLOR</label>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { id: 'RED', label: 'RED', color: 'bg-red-500', multiplier: '2x' },
-                  { id: 'GREEN', label: 'GREEN', color: 'bg-green-500', multiplier: '2x' },
-                  { id: 'VIOLET', label: 'VIOLET', color: 'bg-purple-500', multiplier: '5x' },
-                ].map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedColor(c.id)}
-                    className={clsx(
-                      "p-4 rounded-xl flex flex-col items-center gap-2 transition-all",
-                      selectedColor === c.id
-                        ? `${c.color} shadow-lg`
-                        : "bg-[#0a0e27] hover:bg-[#1a1f3a] border border-gray-700"
-                    )}
-                  >
-                    <div className={clsx("w-4 h-4 rounded-full", c.color)} />
-                    <span className="font-bold text-sm">{c.label}</span>
-                    <span className="text-xs opacity-70">{c.multiplier}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Place Bet Button */}
-            <button
-              onClick={handleBet}
-              disabled={!selectedColor || !betAmount || isBetting || !account}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
-            >
-              <span>🎲</span>
-              {isBetting ? 'Processing...' : 'Place Bet'}
-            </button>
-          </div>
-        </div>
-
-        {/* Right Panel */}
-        <div className="space-y-4">
-          {/* Last Results */}
-          <div className="bg-[#1a1f3a] rounded-2xl p-4 border border-gray-800">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold flex items-center gap-2">
-                <span>🎯</span> Last Results
-              </h3>
-              <span className="text-xs text-gray-500">{lastResults.length}</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {lastResults.map((result, i) => (
-                <div
-                  key={i}
-                  className={clsx(
-                    "w-8 h-8 rounded-full",
-                    result === 'RED' && "bg-red-500",
-                    result === 'GREEN' && "bg-green-500",
-                    result === 'VIOLET' && "bg-purple-500"
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Betting History */}
-          <div className="bg-[#1a1f3a] rounded-2xl p-4 border border-gray-800">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold flex items-center gap-2">
-                <span>📊</span> My Betting History
-              </h3>
-              {history.length > 0 && (
-                <button
-                  onClick={() => setHistory([])}
-                  className="text-xs text-gray-400 hover:text-white"
-                >
-                  Clear
-                </button>
+              {/* Active Bet */}
+              {myBet && (
+                <div className={clsx("border rounded-xl p-4", isDarkMode ? "bg-blue-900/20 border-blue-700" : "bg-blue-50 border-blue-200")}>
+                  <div className={clsx("text-sm font-medium mb-1", isDarkMode ? "text-blue-300" : "text-blue-900")}>Active Bet</div>
+                  <div className={clsx(isDarkMode ? "text-blue-200" : "text-blue-700")}>
+                    <span className="font-bold">{myBet.amount} CGT</span> on{' '}
+                    <span className={clsx(
+                      "font-bold",
+                      myBet.color === 'RED' && "text-red-600",
+                      myBet.color === 'GREEN' && "text-green-600",
+                      myBet.color === 'VIOLET' && "text-purple-600"
+                    )}>
+                      {myBet.color}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className="bg-[#0a0e27] p-2 rounded-lg">
-                <div className="text-xs text-gray-400">TOTAL BETS</div>
-                <div className="text-lg font-bold">{history.length}</div>
-              </div>
-              <div className="bg-[#0a0e27] p-2 rounded-lg">
-                <div className="text-xs text-gray-400">WINS</div>
-                <div className="text-lg font-bold text-green-400">{history.filter(h => h.won).length}</div>
-              </div>
-              <div className="bg-[#0a0e27] p-2 rounded-lg">
-                <div className="text-xs text-gray-400">LOSSES</div>
-                <div className="text-lg font-bold text-red-400">{history.filter(h => !h.won).length}</div>
-              </div>
-              <div className="bg-[#0a0e27] p-2 rounded-lg">
-                <div className="text-xs text-gray-400">NET P/L</div>
-                <div className="text-lg font-bold text-orange-400">
-                  {history.reduce((sum, h) => sum + parseFloat(h.winLoss), 0).toFixed(2)} CGT
+            {/* Middle Column - Betting */}
+            <div className="lg:col-span-5">
+              <div className={clsx("rounded-xl p-6 shadow-sm border", isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200")}>
+                <h2 className={clsx("text-lg font-bold mb-6", isDarkMode ? "text-white" : "text-gray-900")}>Place Your Bet</h2>
+
+                <div className="space-y-6">
+                  {/* Color Selection */}
+                  <div>
+                    <label className={clsx("block text-sm font-semibold mb-3", isDarkMode ? "text-gray-200" : "text-gray-700")}>Select Color</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'RED', label: 'Red', color: 'bg-red-500', hoverColor: 'hover:bg-red-600', borderColor: 'border-red-600', multiplier: '2x' },
+                        { id: 'GREEN', label: 'Green', color: 'bg-green-500', hoverColor: 'hover:bg-green-600', borderColor: 'border-green-600', multiplier: '2x' },
+                        { id: 'VIOLET', label: 'Violet', color: 'bg-purple-500', hoverColor: 'hover:bg-purple-600', borderColor: 'border-purple-600', multiplier: '5x' },
+                      ].map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedColor(c.id)}
+                          className={clsx(
+                            "p-4 rounded-lg border-2 transition-all text-white font-semibold",
+                            selectedColor === c.id
+                              ? `${c.color} ${c.borderColor} ring-4 ring-opacity-30 ${c.color.replace('bg-', 'ring-')}`
+                              : `${c.color} border-transparent ${c.hoverColor}`
+                          )}
+                        >
+                          <div className="text-center">
+                            <div className="text-base">{c.label}</div>
+                            <div className="text-xs opacity-90 mt-1">{c.multiplier} payout</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amount Input */}
+                  <div>
+                    <label className={clsx("block text-sm font-semibold mb-3", isDarkMode ? "text-gray-200" : "text-gray-700")}>Bet Amount</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={betAmount}
+                        onChange={(e) => setBetAmount(e.target.value)}
+                        className={clsx("w-full border-2 focus:border-indigo-500 rounded-lg px-4 py-3 text-lg font-semibold focus:outline-none focus:ring-4 focus:ring-indigo-100", isDarkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-300 text-gray-900")}
+                        placeholder="Enter amount"
+                      />
+                      <div className={clsx("absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium", isDarkMode ? "text-gray-400" : "text-gray-500")}>
+                        CGT
+                      </div>
+                    </div>
+
+                    {/* Quick Select */}
+                    <div className="grid grid-cols-4 gap-2 mt-3">
+                      {['10', '50', '100', '500'].map((val) => (
+                        <button
+                          key={val}
+                          onClick={() => setBetAmount(val)}
+                          className={clsx(
+                            "px-3 py-2 rounded-lg text-sm font-medium transition-colors border",
+                            betAmount === val
+                              ? "bg-indigo-600 text-white border-indigo-600"
+                              : (isDarkMode ? "bg-gray-700 text-gray-200 border-gray-600 hover:bg-gray-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
+                          )}
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Place Bet Button */}
+                  <button
+                    onClick={handleBet}
+                    disabled={!selectedColor || !betAmount || isBetting || !account}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-lg font-bold text-lg transition-colors shadow-sm"
+                  >
+                    {isBetting ? 'Processing Transaction...' : 'Place Bet'}
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* History Table */}
-            <div className="overflow-x-auto max-h-96 overflow-y-auto">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-[#1a1f3a]">
-                  <tr className="text-gray-400 border-b border-gray-700">
-                    <th className="text-left py-2">ROUND</th>
-                    <th className="text-left py-2">BET</th>
-                    <th className="text-left py-2">COLOR</th>
-                    <th className="text-left py-2">RESULT</th>
-                    <th className="text-right py-2">WIN/LOSS</th>
-                  </tr>
-                </thead>
-                <tbody>
+            {/* Right Column - History */}
+            <div className="lg:col-span-4">
+              <div className={clsx("rounded-xl p-6 shadow-sm border", isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200")}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className={clsx("text-sm font-semibold", isDarkMode ? "text-gray-200" : "text-gray-700")}>Betting History</h3>
+                  {history.length > 0 && (
+                    <button
+                      onClick={() => setHistory([])}
+                      className={clsx("text-xs", isDarkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-500 hover:text-gray-700")}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto">
                   {history.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="text-center py-4 text-gray-500">
-                        No bets yet. Place your first bet!
-                      </td>
-                    </tr>
+                    <div className={clsx("text-center py-12 text-sm", isDarkMode ? "text-gray-500" : "text-gray-400")}>
+                      No bets placed yet
+                    </div>
                   ) : (
                     history.map((h, i) => (
-                      <tr key={i} className={clsx("border-b border-gray-800", h.won ? "bg-green-500/5" : "bg-red-500/5")}>
-                        <td className="py-2">#{h.roundId}</td>
-                        <td className="py-2">{h.bet}</td>
-                        <td className="py-2">
+                      <div
+                        key={i}
+                        className={clsx(
+                          "p-3 rounded-lg border-2",
+                          h.won
+                            ? (isDarkMode ? "bg-green-900/20 border-green-700" : "bg-green-50 border-green-200")
+                            : (isDarkMode ? "bg-red-900/20 border-red-700" : "bg-red-50 border-red-200")
+                        )}
+                      >
+                        <div className="flex items-start justify-between mb-1">
+                          <div className={clsx("text-xs font-medium", isDarkMode ? "text-gray-400" : "text-gray-600")}>
+                            Round #{h.roundId}
+                          </div>
+                          <div className={clsx(
+                            "text-sm font-bold",
+                            h.won ? (isDarkMode ? "text-green-400" : "text-green-700") : (isDarkMode ? "text-red-400" : "text-red-700")
+                          )}>
+                            {h.winLoss} CGT
+                          </div>
+                        </div>
+                        <div className={clsx("text-xs", isDarkMode ? "text-gray-400" : "text-gray-600")}>
+                          Bet: <span className="font-semibold">{h.bet} CGT</span> on{' '}
                           <span className={clsx(
-                            "px-2 py-0.5 rounded text-xs font-bold",
-                            h.color === 'RED' && "bg-red-500/20 text-red-400",
-                            h.color === 'GREEN' && "bg-green-500/20 text-green-400",
-                            h.color === 'VIOLET' && "bg-purple-500/20 text-purple-400"
+                            "font-semibold",
+                            h.color === 'RED' && "text-red-600",
+                            h.color === 'GREEN' && "text-green-600",
+                            h.color === 'VIOLET' && "text-purple-600"
                           )}>
                             {h.color}
                           </span>
-                        </td>
-                        <td className="py-2">
-                          <span className={clsx(
-                            "px-2 py-0.5 rounded text-xs font-bold",
-                            h.result === 'RED' && "bg-red-500/20 text-red-400",
-                            h.result === 'GREEN' && "bg-green-500/20 text-green-400",
-                            h.result === 'VIOLET' && "bg-purple-500/20 text-purple-400"
-                          )}>
-                            {h.result}
-                          </span>
-                        </td>
-                        <td className={clsx("py-2 text-right font-bold", h.won ? "text-green-400" : "text-red-400")}>
-                          {h.winLoss}
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     ))
                   )}
-                </tbody>
-              </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>
