@@ -14,6 +14,8 @@ import {
 
 function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0.00');
@@ -42,7 +44,13 @@ function App() {
   };
 
   const connectWallet = async () => {
-    if (!window.ethereum) return showMessage("Please install MetaMask", 'error');
+    if (!window.ethereum) {
+      if (isMobile) {
+        setShowHelpModal(true);
+        return;
+      }
+      return showMessage("Please install MetaMask browser extension", 'error');
+    }
     setIsConnecting(true);
 
     try {
@@ -213,6 +221,15 @@ function App() {
   }, [currentRound]);
 
   useEffect(() => {
+    // Detect mobile device
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsMobile(isMobileDevice || isTouchDevice);
+    };
+
+    checkMobile();
     loadRound();
     loadResultHistory();
 
@@ -274,13 +291,24 @@ function App() {
               </div>
             </>
           ) : (
-            <button
-              onClick={connectWallet}
-              disabled={isConnecting}
-              className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
-            >
-              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={connectWallet}
+                disabled={isConnecting}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+              >
+                {isConnecting ? 'Connecting...' : (isMobile ? '📱 Connect Wallet' : 'Connect Wallet')}
+              </button>
+              {isMobile && (
+                <button
+                  onClick={() => setShowHelpModal(true)}
+                  className={clsx("p-2.5 rounded-lg border transition-colors", isDarkMode ? "bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600" : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200")}
+                  title="How to connect on mobile"
+                >
+                  ❓
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -300,6 +328,101 @@ function App() {
             )}
           >
             {message.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Help Modal */}
+      <AnimatePresence>
+        {showHelpModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowHelpModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className={clsx("max-w-md w-full rounded-xl p-6 shadow-2xl", isDarkMode ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-200")}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className={clsx("text-xl font-bold", isDarkMode ? "text-white" : "text-gray-900")}>
+                  Connect Wallet on Mobile
+                </h3>
+                <button
+                  onClick={() => setShowHelpModal(false)}
+                  className={clsx("text-2xl leading-none", isDarkMode ? "text-gray-400 hover:text-white" : "text-gray-500 hover:text-gray-900")}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className={clsx("space-y-4 text-sm", isDarkMode ? "text-gray-300" : "text-gray-600")}>
+                <div className={clsx("p-3 rounded-lg", isDarkMode ? "bg-blue-900/20 border border-blue-700" : "bg-blue-50 border border-blue-200")}>
+                  <p className={clsx("font-semibold mb-1", isDarkMode ? "text-blue-300" : "text-blue-900")}>
+                    📱 MetaMask Mobile App Required
+                  </p>
+                  <p className={clsx(isDarkMode ? "text-blue-200" : "text-blue-700")}>
+                    To use this app on mobile, you need the MetaMask mobile app.
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className={clsx("font-semibold mb-2", isDarkMode ? "text-white" : "text-gray-900")}>
+                    Step 1: Download MetaMask
+                  </h4>
+                  <p className="mb-2">Download the official MetaMask app:</p>
+                  <div className="flex gap-2">
+                    <a
+                      href="https://apps.apple.com/app/metamask/id1438144202"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 px-3 py-2 bg-black text-white rounded-lg text-center text-xs font-medium hover:bg-gray-800"
+                    >
+                      📱 App Store
+                    </a>
+                    <a
+                      href="https://play.google.com/store/apps/details?id=io.metamask"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg text-center text-xs font-medium hover:bg-green-700"
+                    >
+                      🤖 Play Store
+                    </a>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className={clsx("font-semibold mb-2", isDarkMode ? "text-white" : "text-gray-900")}>
+                    Step 2: Open in MetaMask Browser
+                  </h4>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Open the MetaMask app</li>
+                    <li>Tap the <strong>menu icon (☰)</strong> in the top left</li>
+                    <li>Select <strong>"Browser"</strong></li>
+                    <li>Enter this website's URL in the address bar</li>
+                    <li>Tap <strong>"Connect Wallet"</strong> on the site</li>
+                  </ol>
+                </div>
+
+                <div className={clsx("p-3 rounded-lg border", isDarkMode ? "bg-yellow-900/20 border-yellow-700" : "bg-yellow-50 border-yellow-200")}>
+                  <p className={clsx("text-xs", isDarkMode ? "text-yellow-200" : "text-yellow-800")}>
+                    <strong>Note:</strong> You must use the MetaMask app's built-in browser. Regular browsers (Safari, Chrome) won't work.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="w-full mt-6 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Got it!
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
