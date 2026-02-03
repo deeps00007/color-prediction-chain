@@ -10,7 +10,7 @@ const ROUND_DURATION = Number(process.env.ROUND_DURATION_SECONDS);
 /* ===== BLOCKCHAIN SETUP ===== */
 
 const ABI = [
-  "function resolveRound(uint256 roundId, uint8 result) external",
+  "function resolveRound(uint256 roundId, uint8 result, uint8 secondaryResult) external",
   "function rounds(uint256) view returns (uint8 status, uint8 result, bool resolved)"
 ];
 
@@ -101,9 +101,11 @@ async function closeRound(roundId) {
 }
 
 async function resolveRound(roundId) {
-  const result = generateColor();
+  const colorData = generateColor();
+  // Format for DB: "RED", "GREEN", or "VIOLET+RED"
+  const dbParam = colorData.primary === colorData.secondary ? colorData.primary : `${colorData.primary}+${colorData.secondary}`;
 
-  console.log(`🎲 Resolving round ${roundId} → ${result}`);
+  console.log(`🎲 Resolving round ${roundId} → ${dbParam}`);
 
   // 1️⃣ Resolve on blockchain FIRST (this pays winners!)
   let blockchainSuccess = false;
@@ -115,19 +117,19 @@ async function resolveRound(roundId) {
         console.log(`⚠️  Round ${roundId} already resolved on blockchain, skipping...`);
         blockchainSuccess = false; // Don't try to resolve again
       } else {
-        console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
-        
+        console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[colorData.primary]}, ${COLOR_MAP[colorData.secondary]})...`);
+
         // Get current gas price and add 20% buffer for faster confirmation
         const feeData = await provider.getFeeData();
         const maxFeePerGas = (feeData.maxFeePerGas * 120n) / 100n;
         const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * 120n) / 100n;
-        
-        const tx = await contract.resolveRound(roundId, COLOR_MAP[result], {
+
+        const tx = await contract.resolveRound(roundId, COLOR_MAP[colorData.primary], COLOR_MAP[colorData.secondary], {
           maxFeePerGas,
           maxPriorityFeePerGas
         });
         console.log(`   Transaction sent: ${tx.hash}`);
-        
+
         // Wait for confirmation with timeout
         const receipt = await tx.wait(1, 30000); // Wait 1 confirmation, 30s timeout
         console.log(`⛓️ Blockchain resolved in block ${receipt.blockNumber}, winners paid!`);
@@ -146,7 +148,7 @@ async function resolveRound(roundId) {
     .from("rounds")
     .update({
       status: "RESOLVED",
-      result_color: result
+      result_color: dbParam
     })
     .eq("id", roundId);
 
@@ -154,7 +156,7 @@ async function resolveRound(roundId) {
 
   const { error: historyError } = await supabase.from("round_results_history").insert({
     round_id: roundId,
-    color: result
+    color: dbParam
   });
 
   if (historyError) console.error("❌ Supabase history insert error:", historyError);
@@ -162,7 +164,7 @@ async function resolveRound(roundId) {
   // 3️⃣ Additional history save attempt (Robustness)
   // Sometimes single inserts fail if table triggers are weird.
   // We log success here.
-  if(!historyError) console.log("✅ History saved to Supabase");
+  if (!historyError) console.log("✅ History saved to Supabase");
 
   if (blockchainSuccess) {
     console.log("✅ Round fully resolved (Blockchain + Supabase)");

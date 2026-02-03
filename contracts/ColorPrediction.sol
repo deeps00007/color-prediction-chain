@@ -107,7 +107,7 @@ contract ColorPrediction {
         emit BetPlaced(roundId, msg.sender, color, amount);
     }
 
-    function resolveRound(uint256 roundId, Color result)
+    function resolveRound(uint256 roundId, Color result, Color secondaryResult)
         external
         onlyOwner
     {
@@ -125,8 +125,12 @@ contract ColorPrediction {
             address player = players[i];
             Bet storage bet = bets[roundId][player];
 
-            if (bet.color == result) {
-                uint256 payout = calculatePayout(bet.amount, result);
+            // Winner if bet color matches EITHER result OR secondaryResult
+            // Note: If both match (bet on Red, Result=Violet+Red), it hits 'secondaryResult' check.
+            if (bet.color == result || bet.color == secondaryResult) {
+                // Payout based on the color the USER BET ON
+                uint256 payout = calculatePayout(bet.amount, bet.color);
+                
                 // Transfer tokens from Contract -> Winner
                 require(gameToken.transfer(player, payout), "Payout failed");
                 emit Payout(player, payout);
