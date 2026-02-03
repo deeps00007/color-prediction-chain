@@ -23,7 +23,6 @@ function App() {
   }, [isDarkMode]);
   const [isMobile, setIsMobile] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [isServerWaking, setIsServerWaking] = useState(false);
   const [mintAmount, setMintAmount] = useState('1000'); // Default mint amount
 
   const [account, setAccount] = useState(null);
@@ -130,39 +129,13 @@ function App() {
   };
 
   const wakeUpServer = async () => {
-    if (isServerWaking) return;
-    setIsServerWaking(true);
-    showMessage("Waking up server... (this may take 1-2 mins)", 'info');
-
-    const maxRetries = 30; // 60 seconds max
-    let retries = 0;
-
-    const checkServer = async () => {
-      try {
-        const res = await fetch('https://color-prediction-chain.onrender.com/health');
-        if (res.ok) return true;
-        return false;
-      } catch (e) {
-        return false;
-      }
-    };
-
-    const attemptWake = async () => {
-      while (retries < maxRetries) {
-        const isUp = await checkServer();
-        if (isUp) {
-          showMessage("Server is now active!", 'success');
-          setIsServerWaking(false);
-          return;
-        }
-        retries++;
-        await new Promise(r => setTimeout(r, 2000));
-      }
-      showMessage("Server wake timeout. Try again.", 'error');
-      setIsServerWaking(false);
-    };
-
-    attemptWake();
+    try {
+      showMessage("Waking up server...", 'info');
+      await fetch('https://color-prediction-chain.onrender.com/');
+      showMessage("Server active", 'success');
+    } catch (e) {
+      showMessage("Server check failed", 'error');
+    }
   };
 
   const handleBet = async () => {
@@ -395,19 +368,10 @@ function App() {
           {/* Wake Server Button */}
           <button
             onClick={wakeUpServer}
-            disabled={isServerWaking}
-            className={clsx("p-2 rounded-lg transition-colors flex items-center justify-center min-w-[40px]",
-              isDarkMode ? "bg-gray-700 hover:bg-gray-600 text-yellow-400" : "bg-gray-100 hover:bg-gray-200 text-gray-700",
-              isServerWaking && "opacity-75 cursor-wait"
-            )}
+            className={clsx("p-2 rounded-lg transition-colors", isDarkMode ? "bg-gray-700 hover:bg-gray-600 text-yellow-400" : "bg-gray-100 hover:bg-gray-200 text-gray-700")}
             title="Wake up server"
           >
-            {isServerWaking ? (
-              <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : '⚡'}
+            ⚡
           </button>
 
           {account ? (
