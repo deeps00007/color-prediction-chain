@@ -372,6 +372,24 @@ function App() {
                   )}
                   placeholder="Enter amount"
                 />
+
+                {/* Quick Select for Minting */}
+                <div className="grid grid-cols-4 gap-2 mt-3">
+                  {['1000', '2000', '5000', '10000'].map((val) => (
+                    <button
+                      key={val}
+                      onClick={() => setMintAmount(val)}
+                      className={clsx(
+                        "px-2 py-1.5 rounded-md text-xs font-medium transition-colors border",
+                        mintAmount === val
+                          ? "bg-indigo-600 text-white border-indigo-600"
+                          : (isDarkMode ? "bg-gray-700 text-gray-200 border-gray-600 hover:bg-gray-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50")
+                      )}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex justify-end gap-3">
