@@ -252,6 +252,75 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (account && gameContract) {
+      loadUserBets();
+    }
+  }, [account, gameContract]);
+
+  const loadUserBets = async () => {
+    if (!gameContract || !account) return;
+
+    try {
+      // 1. Fetch BetPlaced events for current user
+      const filter = gameContract.filters.BetPlaced(null, account);
+      const events = await gameContract.queryFilter(filter);
+
+      // 2. Fetch all relevant round results from Supabase
+      const roundIds = events.map(e => e.args[0].toString());
+      if (roundIds.length === 0) return;
+
+      const { data: roundsData } = await supabase
+        .from("rounds")
+        .select("id, result_color")
+        .in("id", roundIds);
+
+      const roundsMap = {};
+      roundsData?.forEach(r => roundsMap[r.id] = r.result_color);
+
+      // 3. Combine data
+      const historyItems = events.map(e => {
+        const roundId = e.args[0].toString();
+        const colorCode = Number(e.args[2]); // 0=RED, 1=GREEN, 2=VIOLET
+        const amountWei = e.args[3];
+
+        let colorName = 'RED';
+        if (colorCode === 1) colorName = 'GREEN';
+        if (colorCode === 2) colorName = 'VIOLET';
+
+        const resultColor = roundsMap[roundId]?.toUpperCase();
+        const betAmount = ethers.formatEther(amountWei);
+
+        let won = false;
+        let winLossAmount = `-${betAmount}`;
+
+        if (resultColor && resultColor === colorName) {
+          won = true;
+          const multiplier = resultColor === "VIOLET" ? 5 : 2;
+          winLossAmount = `+${(parseFloat(betAmount) * multiplier).toFixed(2)}`;
+        }
+
+        return {
+          roundId,
+          bet: betAmount,
+          color: colorName,
+          result: resultColor,
+          winLoss: winLossAmount,
+          won: won,
+          // Only show result if the round has a result
+          isPending: !resultColor
+        };
+      });
+
+      // Sort by roundId descending
+      historyItems.sort((a, b) => b.roundId - a.roundId);
+      setHistory(historyItems);
+
+    } catch (err) {
+      console.error("Failed to load history:", err);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={clsx("h-screen flex items-center justify-center", isDarkMode ? "bg-gray-900" : "bg-gray-50")}>
