@@ -174,6 +174,7 @@ function App() {
       showMessage(`Bet placed: ${betAmount} CGT on ${selectedColor}`, 'success');
       setBalance(parseFloat(ethers.formatEther(balanceAfter)).toFixed(2));
       setSelectedColor(null);
+      loadUserBets(); // Refresh history immediately
 
     } catch (error) {
       showMessage(error.code === 4001 ? "Transaction rejected" : "Bet failed", 'error');
@@ -218,14 +219,7 @@ function App() {
 
     showMessage(won ? `You won ${winLossAmount} CGT!` : `You lost ${myBet.amount} CGT`, won ? 'success' : 'error');
 
-    setHistory(prev => [{
-      roundId: round.id,
-      bet: myBet.amount,
-      color: myBet.color,
-      result: winningColor,
-      winLoss: winLossAmount,
-      won: won,
-    }, ...prev].slice(0, 20));
+    await loadUserBets(); // Refresh history from chain/db to ensure accuracy
 
     setBalance(parseFloat(ethers.formatEther(finalBalance)).toFixed(2));
     setMyBet(null);
@@ -713,9 +707,11 @@ function App() {
                         key={i}
                         className={clsx(
                           "p-3 rounded-lg border-2",
-                          h.won
-                            ? (isDarkMode ? "bg-green-900/20 border-green-700" : "bg-green-50 border-green-200")
-                            : (isDarkMode ? "bg-red-900/20 border-red-700" : "bg-red-50 border-red-200")
+                          h.isPending
+                            ? (isDarkMode ? "bg-yellow-900/20 border-yellow-700" : "bg-yellow-50 border-yellow-200")
+                            : h.won
+                              ? (isDarkMode ? "bg-green-900/20 border-green-700" : "bg-green-50 border-green-200")
+                              : (isDarkMode ? "bg-red-900/20 border-red-700" : "bg-red-50 border-red-200")
                         )}
                       >
                         <div className="flex items-start justify-between mb-1">
@@ -724,9 +720,11 @@ function App() {
                           </div>
                           <div className={clsx(
                             "text-sm font-bold",
-                            h.won ? (isDarkMode ? "text-green-400" : "text-green-700") : (isDarkMode ? "text-red-400" : "text-red-700")
+                            h.isPending
+                              ? (isDarkMode ? "text-yellow-400" : "text-yellow-700")
+                              : h.won ? (isDarkMode ? "text-green-400" : "text-green-700") : (isDarkMode ? "text-red-400" : "text-red-700")
                           )}>
-                            {h.winLoss} CGT
+                            {h.isPending ? "PENDING" : `${h.winLoss} CGT`}
                           </div>
                         </div>
                         <div className={clsx("text-xs", isDarkMode ? "text-gray-400" : "text-gray-600")}>
