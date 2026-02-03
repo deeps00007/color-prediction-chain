@@ -16,6 +16,8 @@ function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showMintModal, setShowMintModal] = useState(false);
+  const [mintAmount, setMintAmount] = useState('1000'); // Default mint amount
 
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0.00');
@@ -104,15 +106,18 @@ function App() {
 
   const mintTokens = async () => {
     if (!tokenContract || !signer || !account) return;
+    if (!mintAmount || parseFloat(mintAmount) <= 0) return showMessage("Enter valid amount", 'error');
+
     try {
       const tokenWithSigner = tokenContract.connect(signer);
-      const tx = await tokenWithSigner.mint(account, ethers.parseEther("1000"));
+      const tx = await tokenWithSigner.mint(account, ethers.parseEther(mintAmount.toString()));
+      setShowMintModal(false); // Close modal automatically
       showMessage("Minting tokens...", 'info');
       await tx.wait();
       await new Promise(r => setTimeout(r, 2000));
       const bal = await tokenContract.balanceOf(account);
       setBalance(parseFloat(ethers.formatEther(bal)).toFixed(2));
-      showMessage("1000 CGT minted successfully", 'success');
+      showMessage(`${mintAmount} CGT minted successfully`, 'success');
     } catch (e) {
       showMessage("Mint failed", 'error');
     }
@@ -281,7 +286,7 @@ function App() {
                 <div className={clsx("text-lg font-bold", isDarkMode ? "text-white" : "text-gray-900")}>{balance} <span className={clsx("text-sm font-normal", isDarkMode ? "text-gray-400" : "text-gray-500")}>CGT</span></div>
               </div>
               <button
-                onClick={mintTokens}
+                onClick={() => setShowMintModal(true)}
                 className={clsx("px-4 py-2 rounded-lg text-sm font-medium transition-colors border", isDarkMode ? "bg-gray-700 hover:bg-gray-600 text-gray-200 border-gray-600" : "bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300")}
               >
                 Get Test Tokens
@@ -328,6 +333,62 @@ function App() {
             )}
           >
             {message.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mint Modal */}
+      <AnimatePresence>
+        {showMintModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowMintModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className={clsx("max-w-sm w-full rounded-xl p-6 shadow-2xl", isDarkMode ? "bg-gray-800 border border-gray-700" : "bg-white border border-gray-200")}
+            >
+              <h3 className={clsx("text-xl font-bold mb-4", isDarkMode ? "text-white" : "text-gray-900")}>
+                Mint Test Tokens
+              </h3>
+
+              <div className="mb-4">
+                <label className={clsx("block text-sm font-medium mb-2", isDarkMode ? "text-gray-300" : "text-gray-700")}>
+                  Amount to Mint
+                </label>
+                <input
+                  type="number"
+                  value={mintAmount}
+                  onChange={(e) => setMintAmount(e.target.value)}
+                  className={clsx(
+                    "w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-500 focus:outline-none",
+                    isDarkMode ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400" : "bg-white border-gray-300 text-gray-900"
+                  )}
+                  placeholder="Enter amount"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowMintModal(false)}
+                  className={clsx("px-4 py-2 rounded-lg text-sm font-medium transition-colors", isDarkMode ? "text-gray-300 hover:bg-gray-700" : "text-gray-600 hover:bg-gray-100")}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={mintTokens}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Mint Tokens
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
