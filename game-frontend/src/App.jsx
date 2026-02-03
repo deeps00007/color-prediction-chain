@@ -106,13 +106,13 @@ function App() {
     if (!tokenContract || !signer || !account) return;
     try {
       const tokenWithSigner = tokenContract.connect(signer);
-      const tx = await tokenWithSigner.mint(account, ethers.parseEther("1000"));
+      const tx = await tokenWithSigner.mint(account, ethers.parseEther("5000"));
       showMessage("Minting tokens...", 'info');
       await tx.wait();
       await new Promise(r => setTimeout(r, 2000));
       const bal = await tokenContract.balanceOf(account);
       setBalance(parseFloat(ethers.formatEther(bal)).toFixed(2));
-      showMessage("1000 CGT minted successfully", 'success');
+      showMessage("5000 CGT minted successfully", 'success');
     } catch (e) {
       showMessage("Mint failed", 'error');
     }

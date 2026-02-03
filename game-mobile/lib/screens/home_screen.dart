@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../providers/wallet_provider.dart';
@@ -13,16 +14,27 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _timer;
   String? _selectedColor;
   final TextEditingController _amountController =
       TextEditingController(text: '10');
+  final TextEditingController _addressController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _startTimer();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // When returning from MetaMask, refresh sessions so UI updates.
+      context.read<WalletProvider>().refreshFromSession();
+    }
   }
 
   void _startTimer() {
@@ -33,8 +45,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _amountController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -128,9 +142,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ],
                       ),
-                      IconButton(
-                        onPressed: () => walletProvider.updateBalance(),
-                        icon: const Icon(Icons.refresh),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => walletProvider.updateBalance(),
+                            icon: const Icon(Icons.refresh),
+                            tooltip: 'Refresh Balance',
+                          ),
+                          IconButton(
+                            onPressed: () => walletProvider.disconnect(),
+                            icon: const Icon(Icons.logout),
+                            tooltip: 'Disconnect',
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -157,20 +181,68 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               )
-            : SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: walletProvider.isConnecting
-                      ? null
-                      : () => walletProvider.connect(context),
-                  icon: const Icon(Icons.account_balance_wallet),
-                  label: Text(walletProvider.isConnecting
-                      ? 'Connecting...'
-                      : 'Connect Wallet'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.all(16),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: walletProvider.isConnecting
+                          ? null
+                          : () => walletProvider.connect(context),
+                      icon: const Icon(Icons.account_balance_wallet),
+                      label: Text(walletProvider.isConnecting
+                          ? 'Connecting...'
+                          : 'Connect Wallet'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.all(16),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'OR Enter Address Manually (Testing)',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _addressController,
+                    decoration: const InputDecoration(
+                      labelText: 'Wallet Address',
+                      hintText: '0x...',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.wallet),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: () {
+                      if (_addressController.text.startsWith('0x') &&
+                          _addressController.text.length == 42) {
+                        walletProvider
+                            .setManualAddress(_addressController.text);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Address set! (Manual mode - transactions won\'t work)'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Invalid address format'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('Use This Address (Testing Only)'),
+                  ),
+                ],
               ),
       ),
     );

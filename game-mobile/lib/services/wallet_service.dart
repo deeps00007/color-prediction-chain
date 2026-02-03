@@ -1,315 +1,344 @@
-import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:walletconnect_flutter_v2/walletconnect_flutter_v2.dart';
+
 import '../config/app_config.dart';
 
-class WalletService {
-  static WalletService? _instance;
-  static WalletService get instance => _instance ??= WalletService._();
+class WalletConnectionException implements Exception {
+  final String message;
+  final Uri? wcUri;
 
+  WalletConnectionException(this.message, {this.wcUri});
+
+  @override
+  String toString() => message;
+}
+
+class WalletService {
   WalletService._();
+  static final WalletService instance = WalletService._();
 
   Web3App? _web3App;
   SessionData? _session;
-  String? _currentAddress;
+  String? _address;
+  Uri? _lastConnectionUri;
 
-  bool get isConnected => _session != null && _currentAddress != null;
-  String? get address => _currentAddress;
+  final StreamController<String?> _addressController =
+      StreamController<String?>.broadcast();
 
-  Future<void> initialize() async {
-    try {
-      _web3App = await Web3App.createInstance(
-        projectId: AppConfig.walletConnectProjectId,
-        metadata: const PairingMetadata(
-          name: 'Color Prediction',
-          description: 'Blockchain betting game',
-          url: 'https://colorprediction.app',
-          icons: ['https://colorprediction.app/icon.png'],
-        ),
-      );
+  // =======================
+  // Getters
+  // =======================
+  bool get isConnected => _session != null && _address != null;
+  String? get address => _address;
+  Uri? get lastConnectionUri => _lastConnectionUri;
+  Stream<String?> get addressStream => _addressController.stream;
 
-      debugPrint('✅ WalletConnect initialized');
-
-      // Check for existing sessions
-      _checkExistingSessions();
-
-      // Listen to session events
-      _web3App!.onSessionDelete.subscribe(_onSessionDelete);
-      _web3App!.onSessionConnect.subscribe(_onSessionConnect);
-      _web3App!.onSessionUpdate.subscribe(_onSessionUpdate);
-    } catch (e) {
-      debugPrint('❌ Error initializing WalletConnect: $e');
+  Future<void> refreshFromPersistedSessions() async {
+    await initialize();
+    final sessions = _web3App!.sessions.getAll();
+    if (sessions.isEmpty) {
+      _clearSession();
+      return;
     }
+    _setSession(sessions.first);
   }
 
-  void _checkExistingSessions() {
+  // =======================
+  // INIT
+  // =======================
+  Future<void> initialize() async {
+    if (_web3App != null) return;
+
+    _web3App = await Web3App.createInstance(
+      projectId: AppConfig.walletConnectProjectId,
+      metadata: const PairingMetadata(
+        name: 'Color Prediction',
+        description: 'Blockchain betting game',
+        url: 'https://colorprediction.app',
+        icons: ['https://colorprediction.app/icon.png'],
+      ),
+    );
+
+    debugPrint('✅ WalletConnect initialized');
+
+    // Restore existing session if available
     final sessions = _web3App!.sessions.getAll();
     if (sessions.isNotEmpty) {
-      _session = sessions.first;
-      _currentAddress =
-          _session!.namespaces['eip155']?.accounts.first.split(':').last;
-      debugPrint('✅ Found existing session: $_currentAddress');
+      _setSession(sessions.first);
+      debugPrint('♻️ Restored session: $_address');
     }
+
+    // Session listeners
+    _web3App!.onSessionConnect.subscribe(_onSessionConnect);
+    _web3App!.onSessionDelete.subscribe(_onSessionDelete);
+    _web3App!.onSessionUpdate.subscribe(_onSessionUpdate);
   }
 
-  Future<String?> connect(BuildContext context) async {
-    if (_web3App == null) {
-      await initialize();
+  // =======================
+  // CONNECT (HYBRID APPROACH)
+  // =======================
+  Future<String?> connect() async {
+    await initialize();
+
+    // If already connected, reuse
+    if (_session != null && _address != null) {
+      debugPrint('🔁 Already connected: $_address');
+      return _address;
     }
 
-    // Clear any existing sessions first
-    try {
-      final existingSessions = _web3App!.sessions.getAll();
-      if (existingSessions.isNotEmpty) {
-        debugPrint('🧹 Clearing ${existingSessions.length} old session(s)...');
-        for (var session in existingSessions) {
-          await _web3App!.disconnectSession(
-            topic: session.topic,
-            reason: Errors.getSdkError(Errors.USER_DISCONNECTED),
-          );
-        }
-        _session = null;
-        _currentAddress = null;
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-    } catch (e) {
-      debugPrint('⚠️ Error clearing sessions: $e');
-    }
+    debugPrint('🔌 Starting WalletConnect session');
 
-    debugPrint('🔄 Starting fresh connection...');
+    // Note: some wallets won't approve a connection if you require a testnet chain
+    // they don't have enabled yet. We allow mainnet + Sepolia in the namespace,
+    // and can enforce/ask to switch to Sepolia when sending transactions.
 
-    try {
-      final ConnectResponse response = await _web3App!.connect(
-        requiredNamespaces: {
-          'eip155': RequiredNamespace(
-            chains: ['eip155:${AppConfig.chainId}'],
-            methods: [
-              'eth_sendTransaction',
-              'eth_signTransaction',
-              'eth_sign',
-              'personal_sign',
-              'eth_signTypedData',
-            ],
-            events: ['chainChanged', 'accountsChanged'],
-          ),
-        },
-      );
+    final response = await _web3App!.connect(
+      requiredNamespaces: {
+        'eip155': RequiredNamespace(
+          chains: ['eip155:1', 'eip155:${AppConfig.chainId}'],
+          methods: [
+            'eth_sendTransaction',
+            'wallet_switchEthereumChain',
+            'wallet_addEthereumChain',
+            'personal_sign',
+            'eth_signTypedData',
+            'eth_signTypedData_v4',
+          ],
+          events: ['accountsChanged', 'chainChanged'],
+        ),
+      },
+    );
 
-      final Uri? uri = response.uri;
-      if (uri != null) {
-        final wcUri = uri.toString();
-        debugPrint('📱 WalletConnect URI generated');
-
-        // Try to open MetaMask app
-        final metamaskUri =
-            Uri.parse('metamask://wc?uri=${Uri.encodeComponent(wcUri)}');
-
-        try {
-          final launched = await launchUrl(
-            metamaskUri,
-            mode: LaunchMode.externalApplication,
-          );
-          debugPrint(
-              launched ? '✅ Opened MetaMask' : '❌ Failed to open MetaMask');
-
-          if (!launched && context.mounted) {
-            await _showWalletOptions(context, wcUri);
-          }
-        } catch (e) {
-          debugPrint('❌ Error launching MetaMask: $e');
-          if (context.mounted) {
-            await _showWalletOptions(context, wcUri);
-          }
-        }
-      }
-
-      debugPrint('⏳ Waiting for approval (polling for session)...');
-
-      // Instead of waiting for future, poll for session
-      int attempts = 0;
-      const maxAttempts = 60; // 60 seconds
-
-      while (attempts < maxAttempts) {
-        await Future.delayed(const Duration(seconds: 1));
-
-        // Check if session was created
-        final sessions = _web3App!.sessions.getAll();
-        if (sessions.isNotEmpty) {
-          _session = sessions.first;
-          _currentAddress =
-              _session!.namespaces['eip155']?.accounts.first.split(':').last;
-          debugPrint('✅ Connected! Address: $_currentAddress');
-          return _currentAddress;
-        }
-
-        attempts++;
-        if (attempts % 5 == 0) {
-          debugPrint('⏳ Still waiting... ($attempts seconds)');
-        }
-      }
-
-      debugPrint('⏱️ Connection timeout after $maxAttempts seconds');
-      return null;
-    } catch (e) {
-      debugPrint('❌ Connection error: $e');
-      return null;
-    }
-  }
-
-  Future<void> disconnect() async {
-    if (_session != null && _web3App != null) {
-      try {
-        await _web3App!.disconnectSession(
-          topic: _session!.topic,
-          reason: Errors.getSdkError(Errors.USER_DISCONNECTED),
+    // Open wallet (MetaMask / others)
+    if (response.uri != null) {
+      _lastConnectionUri = response.uri;
+      final opened = await _openWalletForSession(response.uri!);
+      if (!opened) {
+        throw WalletConnectionException(
+          'Could not open a wallet app. Install MetaMask (or another WC wallet) and try again.',
+          wcUri: response.uri,
         );
-        debugPrint('✅ Disconnected');
-      } catch (e) {
-        debugPrint('❌ Disconnect error: $e');
       }
-      _session = null;
-      _currentAddress = null;
+    } else {
+      throw WalletConnectionException(
+        'WalletConnect did not return a connection URI.',
+      );
+    }
+
+    debugPrint('⏳ Waiting for wallet approval...');
+
+    final session = await _waitForSession(response.session.future);
+    if (session == null) {
+      throw WalletConnectionException(
+        'Wallet approved but no session was received. This is usually a relay/network issue or an invalid WalletConnect Project ID.',
+        wcUri: _lastConnectionUri,
+      );
+    }
+
+    _setSession(session);
+    if (_address == null) {
+      throw WalletConnectionException(
+        'Session established but no account address was returned by the wallet.',
+        wcUri: _lastConnectionUri,
+      );
+    }
+
+    debugPrint('✅ Wallet connected: $_address');
+    return _address;
+  }
+
+  Future<SessionData?> _waitForSession(
+      Future<SessionData> sessionFuture) async {
+    const totalTimeout = Duration(seconds: 120);
+
+    // Important: don't use Future.any() with null-returning futures.
+    // If one path returns null early (e.g. response.session.future throws),
+    // Future.any would finish immediately even though the session might arrive
+    // via event/polling.
+
+    final sessionCompleter = Completer<SessionData>();
+
+    // 1) Future from connect()
+    sessionFuture.then((s) {
+      debugPrint('✅ Session received via response.session.future');
+      if (!sessionCompleter.isCompleted) sessionCompleter.complete(s);
+    }).catchError((e) {
+      debugPrint('⚠️ response.session.future error: $e');
+    });
+
+    // 2) Event path
+    void handler(SessionConnect? event) {
+      final session = event?.session;
+      if (session != null && !sessionCompleter.isCompleted) {
+        debugPrint('✅ Session received via onSessionConnect event');
+        sessionCompleter.complete(session);
+      }
+    }
+
+    _web3App!.onSessionConnect.subscribe(handler);
+
+    // 3) Polling path (last resort)
+    () async {
+      for (var i = 1; i <= totalTimeout.inSeconds; i++) {
+        if (sessionCompleter.isCompleted) return;
+        await Future.delayed(const Duration(seconds: 1));
+        final sessions = _web3App!.sessions.getAll();
+        if (sessions.isNotEmpty && !sessionCompleter.isCompleted) {
+          debugPrint('✅ Session received via polling (after ${i}s)');
+          sessionCompleter.complete(sessions.first);
+          return;
+        }
+        if (i % 10 == 0) {
+          debugPrint('⏳ Still waiting for session... (${i}s)');
+        }
+      }
+    }();
+
+    try {
+      return await sessionCompleter.future.timeout(totalTimeout);
+    } catch (_) {
+      return null;
+    } finally {
+      _web3App!.onSessionConnect.unsubscribe(handler);
     }
   }
 
-  Future<String?> sendTransaction({
+  Future<bool> _openWalletForSession(Uri wcUri) async {
+    final encoded = Uri.encodeComponent(wcUri.toString());
+
+    // MetaMask universal link (most reliable on mobile)
+    final metamaskUniversal =
+        Uri.parse('https://metamask.app.link/wc?uri=$encoded');
+
+    // MetaMask custom scheme
+    final metamaskScheme = Uri.parse('metamask://wc?uri=$encoded');
+
+    // WalletConnect universal link (opens wallet selector)
+    final walletConnectUniversal =
+        Uri.parse('https://walletconnect.com/wc?uri=$encoded');
+
+    final candidates = <Uri>[
+      metamaskUniversal,
+      metamaskScheme,
+      walletConnectUniversal,
+      wcUri,
+    ];
+
+    for (final uri in candidates) {
+      try {
+        final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        debugPrint('🔗 launchUrl($uri) => $ok');
+        if (ok) return true;
+      } catch (e) {
+        debugPrint('⚠️ launchUrl failed for $uri: $e');
+      }
+    }
+
+    debugPrint('❌ Could not open any wallet link');
+    return false;
+  }
+
+  Future<bool> reopenLastConnection() async {
+    final uri = _lastConnectionUri;
+    if (uri == null) return false;
+    return _openWalletForSession(uri);
+  }
+
+  // =======================
+  // DISCONNECT
+  // =======================
+  Future<void> disconnect() async {
+    if (_session == null || _web3App == null) return;
+
+    await _web3App!.disconnectSession(
+      topic: _session!.topic,
+      reason: Errors.getSdkError(Errors.USER_DISCONNECTED),
+    );
+
+    _clearSession();
+    debugPrint('🔌 Wallet disconnected');
+  }
+
+  // =======================
+  // SEND TRANSACTION
+  // =======================
+  Future<String> sendTransaction({
     required String to,
-    required String data,
+    String? data,
     String? value,
   }) async {
-    if (_session == null || _currentAddress == null || _web3App == null) {
+    if (!isConnected) {
       throw Exception('Wallet not connected');
     }
 
-    debugPrint('📤 Sending transaction to $to');
-
-    try {
-      final result = await _web3App!.request(
-        topic: _session!.topic,
-        chainId: 'eip155:${AppConfig.chainId}',
-        request: SessionRequestParams(
-          method: 'eth_sendTransaction',
-          params: [
-            {
-              'from': _currentAddress,
-              'to': to,
-              'data': data,
-              if (value != null) 'value': value,
-            }
-          ],
-        ),
-      );
-
-      debugPrint('✅ Transaction sent: $result');
-      return result as String;
-    } catch (e) {
-      debugPrint('❌ Transaction error: $e');
-      rethrow;
-    }
-  }
-
-  void _onSessionDelete(SessionDelete? args) {
-    debugPrint('🔌 Session deleted');
-    _session = null;
-    _currentAddress = null;
-  }
-
-  void _onSessionConnect(SessionConnect? args) {
-    debugPrint('🔗 Session connected event: ${args?.session.topic}');
-    if (args?.session != null) {
-      _session = args!.session;
-      _currentAddress =
-          _session!.namespaces['eip155']?.accounts.first.split(':').last;
-      debugPrint('✅ Session set from event: $_currentAddress');
-    }
-  }
-
-  void _onSessionUpdate(SessionUpdate? args) {
-    debugPrint('🔄 Session updated: ${args?.topic}');
-  }
-
-  Future<void> _showWalletOptions(BuildContext context, String wcUri) async {
-    return showModalBottomSheet(
-      context: context,
-      isDismissible: false,
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Connect Wallet',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Tap to open your wallet app',
-                style: TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-
-              // MetaMask Button
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final metamaskUri = Uri.parse(
-                      'metamask://wc?uri=${Uri.encodeComponent(wcUri)}');
-                  await launchUrl(metamaskUri,
-                      mode: LaunchMode.externalApplication);
-                },
-                icon: const Icon(Icons.account_balance_wallet),
-                label: const Text('Open MetaMask'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Trust Wallet Button
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final trustUri =
-                      Uri.parse('trust://wc?uri=${Uri.encodeComponent(wcUri)}');
-                  await launchUrl(trustUri,
-                      mode: LaunchMode.externalApplication);
-                },
-                icon: const Icon(Icons.account_balance_wallet),
-                label: const Text('Open Trust Wallet'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.all(16),
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              const SizedBox(height: 12),
-
-              const Text(
-                '1. Tap button to open wallet\n2. Approve the connection\n3. Return to this app',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+    final result = await _web3App!.request(
+      topic: _session!.topic,
+      chainId: 'eip155:${AppConfig.chainId}',
+      request: SessionRequestParams(
+        method: 'eth_sendTransaction',
+        params: [
+          {
+            'from': _address,
+            'to': to,
+            if (data != null) 'data': data,
+            if (value != null) 'value': value,
+          }
+        ],
       ),
     );
+
+    debugPrint('📤 Transaction hash: $result');
+    return result as String;
   }
 
+  // =======================
+  // INTERNAL HELPERS
+  // =======================
+  void _setSession(SessionData session) {
+    _session = session;
+    final eip155 = session.namespaces['eip155'];
+    final account =
+        eip155?.accounts.isNotEmpty == true ? eip155!.accounts.first : null;
+    _address = account?.split(':').last;
+    debugPrint('👤 Wallet account: $_address');
+    _addressController.add(_address);
+  }
+
+  void _clearSession() {
+    _session = null;
+    _address = null;
+    _addressController.add(null);
+  }
+
+  // =======================
+  // SESSION EVENTS
+  // =======================
+  void _onSessionConnect(SessionConnect? event) {
+    if (event?.session != null) {
+      _setSession(event!.session);
+      debugPrint('🔗 Session connected (event): $_address');
+    }
+  }
+
+  void _onSessionDelete(SessionDelete? event) {
+    debugPrint('❌ Session deleted');
+    _clearSession();
+  }
+
+  void _onSessionUpdate(SessionUpdate? event) {
+    debugPrint('🔄 Session updated');
+  }
+
+  // =======================
+  // CLEANUP
+  // =======================
   void dispose() {
-    _web3App?.onSessionDelete.unsubscribe(_onSessionDelete);
     _web3App?.onSessionConnect.unsubscribe(_onSessionConnect);
+    _web3App?.onSessionDelete.unsubscribe(_onSessionDelete);
     _web3App?.onSessionUpdate.unsubscribe(_onSessionUpdate);
+    _addressController.close();
   }
 }
