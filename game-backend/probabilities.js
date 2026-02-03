@@ -1,13 +1,7 @@
 export function generateColor() {
   const rand = Math.random() * 100;
 
-  if (rand < 45) return { primary: "RED", secondary: "RED" };
-  if (rand < 90) return { primary: "GREEN", secondary: "GREEN" };
-
-  // Violet case - always paired
-  const isRed = Math.random() < 0.5;
-  return {
-    primary: "VIOLET",
-    secondary: isRed ? "RED" : "GREEN"
-  };
+  if (rand < 45) return "RED";       // 45%
+  if (rand < 90) return "GREEN";     // 45%
+  return "VIOLET";                   // 10%
 }

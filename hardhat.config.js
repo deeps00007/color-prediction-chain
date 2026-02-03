@@ -10,8 +10,8 @@ module.exports = {
     },
     // To deploy to Sepolia, set these in your .env file
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || "",
-      accounts: process.env.SEPOLIA_PRIVATE_KEY ? [process.env.SEPOLIA_PRIVATE_KEY] : (process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [])
+      url: process.env.SEPOLIA_RPC_URL || "",
+      accounts: process.env.SEPOLIA_PRIVATE_KEY ? [process.env.SEPOLIA_PRIVATE_KEY] : []
     }
   }
 };

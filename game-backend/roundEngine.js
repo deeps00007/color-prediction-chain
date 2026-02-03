@@ -10,7 +10,7 @@ const ROUND_DURATION = Number(process.env.ROUND_DURATION_SECONDS);
 /* ===== BLOCKCHAIN SETUP ===== */
 
 const ABI = [
-  "function resolveRound(uint256 roundId, uint8 result, uint8 secondaryResult) external",
+  "function resolveRound(uint256 roundId, uint8 result) external",
   "function rounds(uint256) view returns (uint8 status, uint8 result, bool resolved)"
 ];
 
@@ -101,11 +101,9 @@ async function closeRound(roundId) {
 }
 
 async function resolveRound(roundId) {
-  const colorData = generateColor();
-  // Format for DB: "RED", "GREEN", or "VIOLET+RED"
-  const dbParam = colorData.primary === colorData.secondary ? colorData.primary : `${colorData.primary}+${colorData.secondary}`;
+  const result = generateColor();
 
-  console.log(`🎲 Resolving round ${roundId} → ${dbParam}`);
+  console.log(`🎲 Resolving round ${roundId} → ${result}`);
 
   // 1️⃣ Resolve on blockchain FIRST (this pays winners!)
   let blockchainSuccess = false;
@@ -117,14 +115,14 @@ async function resolveRound(roundId) {
         console.log(`⚠️  Round ${roundId} already resolved on blockchain, skipping...`);
         blockchainSuccess = false; // Don't try to resolve again
       } else {
-        console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[colorData.primary]}, ${COLOR_MAP[colorData.secondary]})...`);
+        console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
 
         // Get current gas price and add 20% buffer for faster confirmation
         const feeData = await provider.getFeeData();
         const maxFeePerGas = (feeData.maxFeePerGas * 120n) / 100n;
         const maxPriorityFeePerGas = (feeData.maxPriorityFeePerGas * 120n) / 100n;
 
-        const tx = await contract.resolveRound(roundId, COLOR_MAP[colorData.primary], COLOR_MAP[colorData.secondary], {
+        const tx = await contract.resolveRound(roundId, COLOR_MAP[result], {
           maxFeePerGas,
           maxPriorityFeePerGas
         });
@@ -148,7 +146,7 @@ async function resolveRound(roundId) {
     .from("rounds")
     .update({
       status: "RESOLVED",
-      result_color: dbParam
+      result_color: result
     })
     .eq("id", roundId);
 
@@ -156,7 +154,7 @@ async function resolveRound(roundId) {
 
   const { error: historyError } = await supabase.from("round_results_history").insert({
     round_id: roundId,
-    color: dbParam
+    color: result
   });
 
   if (historyError) console.error("❌ Supabase history insert error:", historyError);

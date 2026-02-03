@@ -30,15 +30,6 @@ async function main() {
   // Mint to Deployer
   await (await token.mint(deployer.address, ONE_THOUSAND_TOKENS)).wait();
   console.log("💰 Minted 1,000 CGT to Deployer");
-
-  const fs = require("fs");
-  const addressData = {
-    tokenAddress: tokenAddress,
-    predictionAddress: predictionAddress,
-    deployerAddress: deployer.address
-  };
-  fs.writeFileSync("deployed_addresses.json", JSON.stringify(addressData, null, 2));
-  console.log("📝 Addresses saved to deployed_addresses.json");
 }
 
 main().catch((error) => {

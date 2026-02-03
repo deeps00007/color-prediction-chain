@@ -138,24 +138,6 @@ function App() {
     }
   };
 
-  const addToWallet = async () => {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_watchAsset',
-        params: {
-          type: 'ERC20',
-          options: {
-            address: TOKEN_ADDRESS,
-            symbol: 'CGT',
-            decimals: 18,
-          },
-        },
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
   const handleBet = async () => {
     if (!gameContract || !tokenContract || !signer || !account) return showMessage("Connect wallet first", 'error');
     if (!currentRound || currentRound.status !== "OPEN") return showMessage("Betting is closed", 'error');
@@ -230,17 +212,14 @@ function App() {
   };
 
   const handleResult = async (round) => {
-    const resultString = round.result_color?.toUpperCase(); // "RED" or "VIOLET+RED"
-    if (!myBet || myBet.roundId !== round.id || !tokenContract || !account || !resultString) return;
+    const winningColor = round.result_color?.toUpperCase();
+    if (!myBet || myBet.roundId !== round.id || !tokenContract || !account) return;
 
     await new Promise(resolve => setTimeout(resolve, 2000));
     const finalBalance = await tokenContract.balanceOf(account);
+    const won = myBet.color === winningColor;
 
-    // Check if bet color is in the result string (split by +)
-    const winningColors = resultString.split('+');
-    const won = winningColors.includes(myBet.color);
-
-    const multiplier = myBet.color === "VIOLET" ? 5 : 2;
+    const multiplier = winningColor === "VIOLET" ? 5 : 2;
     const winLossAmount = won ? `+${(parseFloat(myBet.amount) * multiplier).toFixed(2)}` : `-${myBet.amount}`;
 
     showMessage(won ? `You won ${winLossAmount} CGT!` : `You lost ${myBet.amount} CGT`, won ? 'success' : 'error');
@@ -269,21 +248,7 @@ function App() {
       setIsMobile(isMobileDevice || isTouchDevice);
     };
 
-    const tryAutoConnect = async () => {
-      if (window.ethereum) {
-        try {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accounts.length > 0) {
-            connectWallet();
-          }
-        } catch (e) {
-          console.error("Auto-connect failed:", e);
-        }
-      }
-    };
-
     checkMobile();
-    tryAutoConnect();
     loadRound();
     loadResultHistory();
 
@@ -338,13 +303,10 @@ function App() {
         let won = false;
         let winLossAmount = `-${betAmount}`;
 
-        if (resultColor) {
-          const winningColors = resultColor.split('+');
-          if (winningColors.includes(colorName)) {
-            won = true;
-            const multiplier = colorName === "VIOLET" ? 5 : 2;
-            winLossAmount = `+${(parseFloat(betAmount) * multiplier).toFixed(2)}`;
-          }
+        if (resultColor && resultColor === colorName) {
+          won = true;
+          const multiplier = resultColor === "VIOLET" ? 5 : 2;
+          winLossAmount = `+${(parseFloat(betAmount) * multiplier).toFixed(2)}`;
         }
 
         return {
@@ -415,12 +377,7 @@ function App() {
             <>
               <div className="text-right">
                 <div className={clsx("text-xs", isDarkMode ? "text-gray-400" : "text-gray-500")}>Your Balance</div>
-                <div className="flex items-center gap-2">
-                  <div className={clsx("text-lg font-bold", isDarkMode ? "text-white" : "text-gray-900")}>{balance} <span className={clsx("text-sm font-normal", isDarkMode ? "text-gray-400" : "text-gray-500")}>CGT</span></div>
-                  <button onClick={addToWallet} className="text-xs p-1 bg-gray-200 rounded hover:bg-gray-300 transition-colors" title="Add to MetaMask">
-                    🦊
-                  </button>
-                </div>
+                <div className={clsx("text-lg font-bold", isDarkMode ? "text-white" : "text-gray-900")}>{balance} <span className={clsx("text-sm font-normal", isDarkMode ? "text-gray-400" : "text-gray-500")}>CGT</span></div>
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -620,8 +577,7 @@ function App() {
                         "w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold text-white shadow-sm",
                         result === 'RED' && "bg-red-500",
                         result === 'GREEN' && "bg-green-500",
-                        (result === 'VIOLET' || result === 'VIOLET+RED') && "bg-[linear-gradient(135deg,#9333ea_50%,#ef4444_50%)]",
-                        result === 'VIOLET+GREEN' && "bg-[linear-gradient(135deg,#9333ea_50%,#22c55e_50%)]"
+                        result === 'VIOLET' && "bg-purple-500"
                       )}
                     >
                       {result[0]}

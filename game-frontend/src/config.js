@@ -1,6 +1,6 @@
 // Contract addresses - UPDATE THESE with your deployed contract addresses
-export const CONTRACT_ADDRESS = "0xbCCa5df888260B0C01Ae9553cb17035358A6fB2B";
-export const TOKEN_ADDRESS = "0x16924Fbf2e72F5f6e89A345Ce105C813AfEB352C";
+export const CONTRACT_ADDRESS = "0x982Ad674Cb4ACE114753ebF2949658e580ca1dD6";
+export const TOKEN_ADDRESS = "0xfDf4343D02330530cC4E3239C5f3F754a767fe7A";
 
 // Supabase configuration
 export const SUPABASE_URL = "https://zskfvqfszulwuhshzuxa.supabase.co";
