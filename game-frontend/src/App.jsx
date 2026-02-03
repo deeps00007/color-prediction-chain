@@ -24,6 +24,7 @@ function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [mintAmount, setMintAmount] = useState('1000'); // Default mint amount
+  const [showGasPanel, setShowGasPanel] = useState(false);
 
   const [account, setAccount] = useState(null);
   const [balance, setBalance] = useState('0.00');
@@ -752,6 +753,64 @@ function App() {
           </div>
         </div>
       </div >
+
+      {/* Floating Gas Button */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        <AnimatePresence>
+          {showGasPanel && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              className={clsx(
+                "p-4 rounded-xl shadow-2xl mb-2 w-72 border",
+                isDarkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+              )}
+            >
+              <h3 className={clsx("font-bold mb-2 text-sm", isDarkMode ? "text-white" : "text-gray-900")}>Need Gas? ⛽</h3>
+              <p className={clsx("text-xs mb-3", isDarkMode ? "text-gray-400" : "text-gray-500")}>
+                You need Sepolia ETH to pay for gas fees.
+              </p>
+
+              {account && (
+                <div className={clsx("p-2 rounded-lg mb-3 flex items-center justify-between", isDarkMode ? "bg-gray-900" : "bg-gray-50")}>
+                  <div className={clsx("text-xs font-mono truncate", isDarkMode ? "text-gray-300" : "text-gray-600")}>
+                    {account}
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(account);
+                      showMessage("Address copied!", "success");
+                    }}
+                    className={clsx("ml-2 p-1 rounded hover:bg-gray-700 transition-colors", isDarkMode ? "text-gray-400" : "text-gray-500")}
+                    title="Copy Address"
+                  >
+                    📋
+                  </button>
+                </div>
+              )}
+
+              <a
+                href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-center rounded-lg text-xs font-bold transition-colors"
+              >
+                Go to Sepolia Faucet ↗
+              </a>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button
+          onClick={() => setShowGasPanel(!showGasPanel)}
+          className="w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center text-xl transition-all hover:scale-110 active:scale-95"
+          title="Get Sepolia Gas"
+        >
+          ⛽
+        </button>
+      </div>
+
     </div >
   );
 }

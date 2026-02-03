@@ -139,9 +139,14 @@ async function resolveRound(roundId) {
   } catch (err) {
     console.error("❌ Blockchain resolution failed:", err.shortMessage || err.message);
     console.log("⚠️  Round will only be marked in Supabase, NO PAYOUTS SENT!");
+    blockchainSuccess = false;
   }
 
-  // 2️⃣ Update Supabase
+  // 2️⃣ Update Supabase ONLY if blockchain succeeded
+  if (!blockchainSuccess) {
+    console.log("🔁 Blockchain failed. Will retry next tick.");
+    return;
+  }
   const { error: updateError } = await supabase
     .from("rounds")
     .update({
