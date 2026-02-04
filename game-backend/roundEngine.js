@@ -113,7 +113,7 @@ async function resolveRound(roundId) {
       const roundData = await contract.rounds(roundId);
       if (roundData.resolved) {
         console.log(`⚠️  Round ${roundId} already resolved on blockchain, skipping...`);
-        blockchainSuccess = false; // Don't try to resolve again
+        blockchainSuccess = true; // Mark as success so we can proceed to update Supabase
       } else {
         console.log(`   Calling blockchain contract.resolveRound(${roundId}, ${COLOR_MAP[result]})...`);
 
