@@ -258,10 +258,12 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         const startPos = width / 2 + offset;
 
         const ball = Bodies.circle(startPos, 20, 6, {
-            restitution: 0.6, // Less bouncy for more predictable path
+            restitution: 0.5,
             friction: 0.005,
-            render: { fillStyle: '#39ff14' }, // Neon Green
-            label: `ball-${Date.now()}`
+            render: { fillStyle: '#39ff14' },
+            label: `ball-${Date.now()}`,
+            collisionFilter: { group: -1 },
+            plugin: { targetX: targetX }
         });
 
         // Add initial force towards target if it's an edge case?
@@ -271,6 +273,43 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
 
         Composite.add(engine.world, ball);
     };
+
+    // Physics Loop for Guidance
+    useEffect(() => {
+        if (!engineRef.current) return;
+
+        const MatterModule = Matter.default || Matter;
+        const Events = MatterModule.Events;
+        const Body = MatterModule.Body;
+
+        const onBeforeUpdate = () => {
+            const engine = engineRef.current;
+            if (!engine) return;
+
+            engine.world.bodies.forEach(body => {
+                if (body.label.startsWith('ball-') && body.plugin && body.plugin.targetX !== undefined) {
+                    const targetX = body.plugin.targetX;
+                    const currentX = body.position.x;
+                    const currentY = body.position.y;
+
+                    if (currentY > height + 50) return;
+
+                    const dx = targetX - currentX;
+                    const forceX = dx * 0.00005; // Gentle guidance
+
+                    Body.applyForce(body, body.position, { x: forceX, y: 0 });
+                }
+            });
+        };
+
+        Events.on(engineRef.current, 'beforeUpdate', onBeforeUpdate);
+
+        return () => {
+            if (engineRef.current) {
+                Events.off(engineRef.current, 'beforeUpdate', onBeforeUpdate);
+            }
+        };
+    }, [engineRef.current]);
 
     return (
         <div className={clsx("flex-1 p-6 flex flex-col items-center overflow-hidden bg-[#0f172a]")}>
