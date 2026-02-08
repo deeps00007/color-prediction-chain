@@ -84,23 +84,53 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
 
         const runner = Runner.create();
 
-        // Walls & Floor
-        const ground = Bodies.rectangle(width / 2, height + 10, width, 20, { isStatic: true, render: { visible: false }, label: 'ground' });
+        // Walls
         const wallLeft = Bodies.rectangle(0, height / 2, 10, height, { isStatic: true, render: { visible: false } });
         const wallRight = Bodies.rectangle(width, height / 2, 10, height, { isStatic: true, render: { visible: false } });
 
+        // Buckets (Physical Partitions)
+        const bucketWalls = [];
+        const bucketFloors = [];
+        const gap = width / (rows + 5);
+        const totalWidth = (rows + 1) * gap;
+        const startX = (width - totalWidth) / 2;
+        const bucketHeight = 60; // Height of the bucket walls
+
+        for (let i = 0; i <= rows + 1; i++) {
+            // Divider Wall
+            const x = startX + (i * gap);
+            const y = height - bucketHeight / 2;
+            const wall = Bodies.rectangle(x, y, 5, bucketHeight, {
+                isStatic: true,
+                render: { fillStyle: '#334155' }, // Slate-700
+                label: 'bucket-wall'
+            });
+            bucketWalls.push(wall);
+
+            // Floor segment (between walls)
+            if (i <= rows) {
+                const floorX = startX + (i * gap) + (gap / 2);
+                const floorY = height + 10;
+                const floor = Bodies.rectangle(floorX, floorY, gap, 20, {
+                    isStatic: true,
+                    render: { visible: false },
+                    label: 'ground'
+                });
+                bucketFloors.push(floor);
+            }
+        }
+
         // Pegs
         const pegs = [];
-        const gap = width / (rows + 5);
-        const startY = 80;
+        const pegStartY = 80;
 
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c <= r + 2; c++) {
                 const x = (width / 2) - ((r + 2) * gap / 2) + (c * gap);
-                const y = startY + r * gap;
+                const y = pegStartY + r * gap;
                 const peg = Bodies.circle(x, y, 4, {
                     isStatic: true,
-                    render: { fillStyle: '#d946ef' }, // Fuchsia-500 for visible pegs
+                    render: { fillStyle: '#d946ef' }, // Fuchsia-500
                     label: 'peg',
                     restitution: 0.5
                 });
@@ -108,19 +138,9 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
             }
         }
 
-        Composite.add(engine.world, [ground, wallLeft, wallRight, ...pegs]);
+        Composite.add(engine.world, [wallLeft, wallRight, ...bucketWalls, ...bucketFloors, ...pegs]);
 
-        // Cleanup balls that hit ground (Purely visual cleanup)
-        Events.on(engine, 'collisionStart', (event) => {
-            event.pairs.forEach(({ bodyA, bodyB }) => {
-                const ball = bodyA.label.startsWith('ball-') ? bodyA : bodyB.label.startsWith('ball-') ? bodyB : null;
-                const groundHit = bodyA.label === 'ground' || bodyB.label === 'ground';
-
-                if (ball && groundHit) {
-                    Composite.remove(engine.world, ball);
-                }
-            });
-        });
+        // Removed auto-cleanup so ball stays in bucket
 
         Runner.run(runner, engine);
         Render.run(render);
