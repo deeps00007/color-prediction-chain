@@ -190,9 +190,9 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
             }
 
             // 2. Play on Chain
-            showMessage("Confirming transaction...", "info");
+            showMessage(`Confirming ${rows} rows transaction...`, "info");
             // Manual gas limit to prevent estimation errors with pseudo-randomness
-            const tx = await plinkoContract.play(amountWei, { gasLimit: 500000 });
+            const tx = await plinkoContract.play(amountWei, rows, { gasLimit: 500000 });
             showMessage("Processing game on-chain...", "info");
 
             const receipt = await tx.wait();
