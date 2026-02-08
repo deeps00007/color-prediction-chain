@@ -30,3 +30,9 @@ export const RPC_URLS = [
     "https://1rpc.io/sepolia",
     "https://rpc.sepolia.org"
 ];
+export const PLINKO_ADDRESS = "0xff83f961c5a4F786c2E8D2Ac381F5ef08437Ad50";
+
+export const PLINKO_ABI = [
+    "function play(uint256 betAmount) external",
+    "event GameResult(address indexed player, uint256 betAmount, uint256 multiplier, uint256 payout, uint256 bucketIndex)"
+];
