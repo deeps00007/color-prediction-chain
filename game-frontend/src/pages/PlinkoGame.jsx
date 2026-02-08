@@ -23,13 +23,16 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
     const padding = width / (rows + 4) / 2;
 
     const getMultipliers = (rowCount) => {
-        const count = rowCount + 1;
-        const mid = Math.floor(count / 2);
-        return Array.from({ length: count }, (_, i) => {
-            const dist = Math.abs(i - mid);
-            const val = 0.2 + (Math.pow(dist, 2.5) / 10);
-            return parseFloat(val.toFixed(1));
-        });
+        if (rowCount === 8) {
+            // 8 Rows: 9 Buckets
+            return [29, 15, 8, 2, 0.5, 2, 8, 15, 29];
+        } else if (rowCount === 12) {
+            // 12 Rows: 13 Buckets
+            return [110, 25, 10, 5, 2, 1, 0.5, 1, 2, 5, 10, 25, 110];
+        } else {
+            // 16 Rows: 17 Buckets
+            return [1000, 100, 20, 10, 5, 2, 0.5, 0.2, 0.2, 0.2, 0.5, 2, 5, 10, 20, 100, 1000];
+        }
     };
 
     const [multipliers, setMultipliers] = useState(getMultipliers(rows));
@@ -235,9 +238,9 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
                 const bucketIndex = Number(gameResult.bucketIndex);
 
                 // Visual Drop
-                spawnVisualBall(bucketIndex);
-
-                showMessage(`Result: ${multiplier}x! Payout: ${payout} CGT`, multiplier >= 1 ? 'success' : 'error');
+                spawnVisualBall(bucketIndex, () => {
+                    showMessage(`Result: ${multiplier}x! Payout: ${payout} CGT`, multiplier >= 1 ? 'success' : 'error');
+                });
             }
 
         } catch (error) {
@@ -260,7 +263,7 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         return "bg-[#ffcc00] shadow-[0_4px_0_#997a00]"; // Yellow (Low multiplier)
     };
 
-    const spawnVisualBall = (bucketIndex) => {
+    const spawnVisualBall = (bucketIndex, onComplete) => {
         const engine = engineRef.current;
         if (!engine) return;
 
@@ -268,6 +271,7 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         const Bodies = MatterModule.Bodies;
         const Composite = MatterModule.Composite;
         const Body = MatterModule.Body;
+        const Events = MatterModule.Events;
 
         // Calculate target X based on bucketIndex
         // 16 rows = 17 buckets (0..16)
@@ -302,6 +306,20 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         Body.applyForce(ball, ball.position, { x: forceX, y: 0 });
 
         Composite.add(engine.world, ball);
+
+        // Monitor Ball Position for Payout
+        const checkBall = () => {
+            if (ball.position.y > height - 60) {
+                if (onComplete) onComplete();
+                Events.off(engine, 'beforeUpdate', checkBall);
+            }
+            if (ball.position.y > height + 100) {
+                if (onComplete) onComplete();
+                Events.off(engine, 'beforeUpdate', checkBall);
+                Composite.remove(engine.world, ball);
+            }
+        };
+        Events.on(engine, 'beforeUpdate', checkBall);
     };
 
     return (
