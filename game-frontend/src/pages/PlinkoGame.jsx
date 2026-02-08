@@ -94,7 +94,7 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         const gap = width / (rows + 5);
         const totalWidth = (rows + 1) * gap;
         const startX = (width - totalWidth) / 2;
-        const bucketHeight = 60; // Height of the bucket walls
+        const bucketHeight = 80;
 
         for (let i = 0; i <= rows + 1; i++) {
             // Divider Wall
@@ -102,7 +102,7 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
             const y = height - bucketHeight / 2;
             const wall = Bodies.rectangle(x, y, 5, bucketHeight, {
                 isStatic: true,
-                render: { fillStyle: '#334155' }, // Slate-700
+                render: { fillStyle: 'white' }, // User requested white
                 label: 'bucket-wall'
             });
             bucketWalls.push(wall);
@@ -139,8 +139,6 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         }
 
         Composite.add(engine.world, [wallLeft, wallRight, ...bucketWalls, ...bucketFloors, ...pegs]);
-
-        // Removed auto-cleanup so ball stays in bucket
 
         Runner.run(runner, engine);
         Render.run(render);
@@ -274,16 +272,16 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         // If target is Left (index < 8), offset Left.
 
         const centerIndex = rows / 2;
-        const offset = (bucketIndex - centerIndex) * 2; // Pixel offset per index deviation
-        const startPos = width / 2 + offset;
+        const deviation = (bucketIndex - centerIndex) * 2.5;
+        const noise = (Math.random() - 0.5) * 5;
+
+        const startPos = (width / 2) + deviation + noise;
 
         const ball = Bodies.circle(startPos, 20, 6, {
-            restitution: 0.5,
-            friction: 0.005,
+            restitution: 0.8, // Bouncy (User requested)
+            friction: 0.001,
             render: { fillStyle: '#39ff14' },
-            label: `ball-${Date.now()}`,
-            collisionFilter: { group: -1 },
-            plugin: { targetX: targetX }
+            label: `ball-${Date.now()}`
         });
 
         // Add initial force towards target if it's an edge case?
@@ -293,43 +291,6 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
 
         Composite.add(engine.world, ball);
     };
-
-    // Physics Loop for Guidance
-    useEffect(() => {
-        if (!engineRef.current) return;
-
-        const MatterModule = Matter.default || Matter;
-        const Events = MatterModule.Events;
-        const Body = MatterModule.Body;
-
-        const onBeforeUpdate = () => {
-            const engine = engineRef.current;
-            if (!engine) return;
-
-            engine.world.bodies.forEach(body => {
-                if (body.label.startsWith('ball-') && body.plugin && body.plugin.targetX !== undefined) {
-                    const targetX = body.plugin.targetX;
-                    const currentX = body.position.x;
-                    const currentY = body.position.y;
-
-                    if (currentY > height + 50) return;
-
-                    const dx = targetX - currentX;
-                    const forceX = dx * 0.00005; // Gentle guidance
-
-                    Body.applyForce(body, body.position, { x: forceX, y: 0 });
-                }
-            });
-        };
-
-        Events.on(engineRef.current, 'beforeUpdate', onBeforeUpdate);
-
-        return () => {
-            if (engineRef.current) {
-                Events.off(engineRef.current, 'beforeUpdate', onBeforeUpdate);
-            }
-        };
-    }, [engineRef.current]);
 
     return (
         <div className={clsx("flex-1 p-6 flex flex-col items-center overflow-hidden bg-[#0f172a]")}>
