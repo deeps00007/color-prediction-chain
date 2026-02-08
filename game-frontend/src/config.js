@@ -30,7 +30,7 @@ export const RPC_URLS = [
     "https://1rpc.io/sepolia",
     "https://rpc.sepolia.org"
 ];
-export const PLINKO_ADDRESS = "0xFcE87A3977aeAB500aF1e7E25bcCAe93522C9777";
+export const PLINKO_ADDRESS = "0x0f73b729d6600A3977aeAB500aF1e7E25bcCCAe93";
 
 export const PLINKO_ABI = [
     "function play(uint256 betAmount, uint256 rowCount) external",
