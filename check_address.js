@@ -1,23 +1,11 @@
-const fs = require('fs');
 const { ethers } = require('ethers');
 
-async function main() {
-    try {
-        const raw = fs.readFileSync('plinko_address.txt', 'utf8');
-        console.log("Raw content:", JSON.stringify(raw));
+const problematic = "0x397cc928de0044b7b6e051d03083BEA040E5E5F6";
 
-        const clean = raw.trim();
-        console.log("Cleaned content:", clean);
-
-        try {
-            const checksummed = ethers.getAddress(clean);
-            console.log("Valid Checksummed Address:", checksummed);
-        } catch (e) {
-            console.error("Invalid Address:", e.message);
-        }
-    } catch (e) {
-        console.error("File error:", e);
-    }
+try {
+    console.log("Input:", problematic);
+    const checksummed = ethers.getAddress(problematic.toLowerCase()); // Convert to lower first to be safe
+    console.log("Valid Checksummed Address:", checksummed);
+} catch (e) {
+    console.error("Error:", e.message);
 }
-
-main();

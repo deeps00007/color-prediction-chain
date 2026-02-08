@@ -39,7 +39,19 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         console.log("PlinkoGame: Signer changed:", signer);
         if (signer) {
             try {
-                const contract = new ethers.Contract(PLINKO_ADDRESS, PLINKO_ABI, signer);
+                console.log("PlinkoGame: Raw Config Address:", PLINKO_ADDRESS);
+
+                let validAddress;
+                try {
+                    validAddress = ethers.getAddress(PLINKO_ADDRESS);
+                    console.log("PlinkoGame: Validated Address:", validAddress);
+                } catch (addrErr) {
+                    console.error("PlinkoGame: Invalid Address in Config", addrErr);
+                    showMessage("Config Error: Invalid Contract Address", "error");
+                    return;
+                }
+
+                const contract = new ethers.Contract(validAddress, PLINKO_ABI, signer);
                 console.log("PlinkoGame: Contract initialized:", contract);
                 setPlinkoContract(contract);
             } catch (e) {
