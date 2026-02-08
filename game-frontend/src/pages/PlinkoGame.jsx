@@ -307,8 +307,22 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
 
         Composite.add(engine.world, ball);
 
-        // Monitor Ball Position for Payout
+        // Monitor Ball Position for Payout & Apply Guidance
         const checkBall = () => {
+            // Smart Gravity: Guide ball to target bucket
+            if (ball.position.y < height - 50) {
+                const xDiff = targetX - ball.position.x;
+
+                // Dynamic strength: 
+                // 1. Base correction
+                // 2. Stronger as it gets lower (y / height)
+                // 3. Stronger if far off course (Math.abs(xDiff))
+                const progress = ball.position.y / height;
+                const adjustment = xDiff * 0.00002 * (1 + progress * 2);
+
+                Body.applyForce(ball, ball.position, { x: adjustment, y: 0 });
+            }
+
             if (ball.position.y > height - 60) {
                 if (onComplete) onComplete();
                 Events.off(engine, 'beforeUpdate', checkBall);
