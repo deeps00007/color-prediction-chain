@@ -282,43 +282,34 @@ export default function PlinkoGame({ isDarkMode, showMessage, account, balance, 
         const startX = (width - totalWidth) / 2 + (gap / 2); // Center of first bucket
         const targetX = startX + (bucketIndex * gap);
 
-        // Heuristic: Spawn ball slightly offset towards target to bias fall
-        // This is not perfect physics but helps visual correlation
-        // Center is width/2. 
-        // If target is Left (index < 8), offset Left.
+        // Heuristic: Spawn center with slight noise (Natural feel)
+        const noise = (Math.random() - 0.5) * 10;
+        const startPos = (width / 2) + noise;
 
-        const centerIndex = rows / 2;
-        const deviation = (bucketIndex - centerIndex) * 2.5;
-        const noise = (Math.random() - 0.5) * 5;
-
-        const startPos = (width / 2) + deviation + noise;
-
-        const ball = Bodies.circle(startPos, 20, 6, {
-            restitution: 0.8, // Bouncy (User requested)
-            friction: 0.001,
+        const ball = Bodies.circle(startPos, 16, 6, { // Slightly smaller ball for better bounce?
+            restitution: 0.9, // Extra Bouncy (User wanted "natural/bouncy")
+            friction: 0.005,
+            density: 1.2,
             render: { fillStyle: '#39ff14' },
             label: `ball-${Date.now()}`
         });
-
-        // Add initial force towards target if it's an edge case?
-        // Matter.js is chaotic. A small x-velocity helps.
-        const forceX = (bucketIndex - centerIndex) * 0.0005;
-        Body.applyForce(ball, ball.position, { x: forceX, y: 0 });
 
         Composite.add(engine.world, ball);
 
         // Monitor Ball Position for Payout & Apply Guidance
         const checkBall = () => {
             // Smart Gravity: Guide ball to target bucket
-            if (ball.position.y < height - 50) {
+            // Only apply if ball is "in play" (below spawn, above buckets)
+            if (ball.position.y > 50 && ball.position.y < height - 50) {
                 const xDiff = targetX - ball.position.x;
 
                 // Dynamic strength: 
-                // 1. Base correction
-                // 2. Stronger as it gets lower (y / height)
-                // 3. Stronger if far off course (Math.abs(xDiff))
+                // Stronger correction needed if we are dropping from center to edge
+                // Scale by vertical progress
                 const progress = ball.position.y / height;
-                const adjustment = xDiff * 0.00002 * (1 + progress * 2);
+
+                // Gentle nudges 
+                const adjustment = xDiff * 0.00005 * progress;
 
                 Body.applyForce(ball, ball.position, { x: adjustment, y: 0 });
             }
