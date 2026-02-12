@@ -10,9 +10,21 @@
 
 # 🎰 Color Prediction Chain
 
-### A decentralized color betting game powered by Ethereum smart contracts
+### A decentralized multi-game platform powered by Ethereum smart contracts
 
-Bet **Color Game Tokens (CGT)** on RED, GREEN, or VIOLET. Win instantly. No middleman.
+Play fully on-chain with **Color Game Tokens (CGT)** via our new **Game Dashboard**.
+
+<br>
+
+## 🕹️ Games Available
+
+### 1. Color Prediction
+Bet **Color Game Tokens (CGT)** on **RED**, **GREEN**, or **VIOLET**.
+- **RED/GREEN**: 2x Multiplier
+- **VIOLET**: 5x Multiplier (High Risk, High Reward)
+
+### 2. Plinko
+Drop the ball down the peg pyramid. Watch it bounce into prize slots ranging from **0.2x** to **1000x**.
 
 <br>
 
@@ -33,7 +45,8 @@ The game is **live on Sepolia Testnet**. Play right now — no installation requ
 | 🎮 **Frontend** | [color-prediction-chain.vercel.app](https://color-prediction-chain.vercel.app/) | 🟢 Online |
 | ⚙️ **Backend** | [color-prediction-chain.onrender.com](https://color-prediction-chain.onrender.com/) | 🟢 Online |
 | 🪙 **Game Token (CGT)** | [0xfDf4...7fe7A](https://sepolia.etherscan.io/address/0xfDf4343D02330530cC4E3239C5f3F754a767fe7A) | 🟢 Active |
-| 📜 **Game Contract** | [0x982A...1dD6](https://sepolia.etherscan.io/address/0x982Ad674Cb4ACE114753ebF2949658e580ca1dD6) | 🟢 Active |
+| 📜 **Color Contract** | [0x982A...1dD6](https://sepolia.etherscan.io/address/0x982Ad674Cb4ACE114753ebF2949658e580ca1dD6) | 🟢 Active |
+| 🔻 **Plinko Contract** | [0xbFE1...55fD](https://sepolia.etherscan.io/address/0xbFE1BDdea85C3BD8759d4d85D4aCBEdDa59F55fD) | 🟢 Active |
 
 ---
 
@@ -104,20 +117,24 @@ You need a tiny amount of ETH to pay for gas fees on transactions. Use one of th
 
 Click **"🪙 Mint 1000 CGT"** in the game. Confirm the MetaMask transaction. You now have **1,000 free Color Game Tokens** to bet with.
 
-### Step 4 — Place Your Bet
+### Step 4 — Play the Games
 
-1. Pick a color and its multiplier:
+Navigate to the **Dashboard** and choose your game.
 
-| Color | Multiplier | Risk |
-|:---|:---:|:---:|
-| 🔴 RED | 2x | Low |
-| 🟢 GREEN | 2x | Low |
-| 🟣 VIOLET | 5x | High |
+#### Option A: Color Prediction 🔴🟢🟣
+1. Pick a color:
+   - **RED** or **GREEN** (2x Payout)
+   - **VIOLET** (5x Payout)
+2. Enter bet amount (e.g., `10 CGT`).
+3. Click **"Place Bet"**.
+4. Winnings are sent automatically when the round ends (~30s).
 
-2. Enter your bet amount (e.g., `10 CGT`)
-3. Click **"Place Bet"** and confirm in MetaMask
-4. Wait for the round to resolve (~30 seconds)
-5. If you win, tokens are sent **instantly** to your wallet by the smart contract
+#### Option B: Plinko 🔻
+1. Set the risk level by choosing **Rows** (8, 12, or 16).
+   - *More rows = Higher potential multiplier (up to 1000x).*
+2. Enter bet amount.
+3. Click **"Play"** to drop a ball.
+4. Winnings are distributed instantly based on the slot the ball lands in.
 
 ---
 
@@ -127,7 +144,8 @@ Click **"🪙 Mint 1000 CGT"** in the game. Confirm the MetaMask transaction. Yo
 |:---|:---|
 | 🪙 **Custom ERC-20 Token** | Bets use `Color Game Token (CGT)` — no real money at risk |
 | 🔓 **Public Minting** | Anyone can mint tokens freely to play |
-| 🤖 **Automated Rounds** | Backend resolves every round every 30 seconds |
+| 🎮 **Multi-Game Support** | Switch between Color Prediction and Plinko |
+| 🤖 **Automated Rounds** | (Color Game) Backend resolves every round every 30 seconds |
 | 📡 **Robust RPC** | Load-balanced public RPCs prevent rate-limiting |
 | 📊 **Real-time History** | Supabase tracks every round result live |
 | ⛓️ **Trustless Payouts** | Smart contract pays winners directly — no manual approval |
