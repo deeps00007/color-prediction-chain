@@ -37,6 +37,49 @@ The game is **live on Sepolia Testnet**. Play right now — no installation requ
 
 ---
 
+## 📱 Mobile App
+
+The game is also available as a **Flutter mobile app** with full WalletConnect integration.
+
+### Features
+- **WalletConnect v2**: Connect securely with MetaMask or other mobile wallets
+- **Deep Linking**: Seamless redirection back to the app after signing transactions
+- **Real-time Updates**: Live game rounds and history
+- **Native Experience**: Smooth performance on Android & iOS
+
+### Getting Started
+
+#### Prerequisites
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) installed
+- An Android Emulator or physical device
+
+#### Installation
+
+1. Navigate to the mobile directory:
+   ```bash
+   cd game-mobile
+   ```
+
+2. Install dependencies:
+   ```bash
+   flutter pub get
+   ```
+
+3. Run the app:
+   ```bash
+   flutter run
+   ```
+
+#### Usage
+1. Tap the **Wallet** icon in the top right.
+2. Select **MetaMask** (or your preferred wallet).
+3. Approve the connection in your wallet app.
+4. The app will automatically reopen via the `colorprediction://` deep link scheme.
+
+> **Dev Note:** The deep link scheme is configured in `android/app/src/main/AndroidManifest.xml`. If you change it, remember to update the `redirectUrl` in `WalletService.dart`.
+
+---
+
 ## 🎮 How to Play
 
 > ⏱️ Takes about **1 minute** to start playing.
@@ -126,7 +169,8 @@ Click **"🪙 Mint 1000 CGT"** in the game. Confirm the MetaMask transaction. Yo
 | ⛓️ Blockchain | Ethereum — Sepolia Testnet |
 | 📜 Smart Contracts | Solidity 0.8.20 + OpenZeppelin (ERC-20) |
 | 🔧 Dev Framework | Hardhat |
-| 🌐 Frontend | HTML, CSS, JavaScript, ethers.js |
+| 🌐 Frontend | HTML, CSS, JavaScript, ethers.js, React, Vite |
+| 📱 Mobile | Flutter (Dart), WalletConnect v2 |
 | 🤖 Backend | Node.js, Express |
 | 🗄️ Database | Supabase (PostgreSQL) |
 | 🦊 Wallet | MetaMask |
@@ -144,8 +188,13 @@ color-prediction-chain/
 │
 ├── game-frontend/
 │   ├── index.html                # Game UI
-│   ├── style.css                 # Styling
-│   └── app.js                    # Web3 logic — connects to blockchain & Supabase
+│   ├── src/                      # React components & logic
+│   └── vite.config.js            # Build configuration
+│
+├── game-mobile/
+│   ├── lib/                      # Flutter source code
+│   ├── android/                  # Android native configuration
+│   └── pubspec.yaml              # Dart dependencies
 │
 ├── game-backend/
 │   ├── index.js                  # Express server entry point
